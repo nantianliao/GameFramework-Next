@@ -16,18 +16,35 @@ public enum UpdateType
     ResourceUpdate = 2,
 }
 
+/// <summary>
+/// 强制更新类型。
+/// </summary>
 public enum UpdateStyle
 {
-    None = 0,
-    Froce = 1, //强制
-    Optional = 2, //非强制
+    /// <summary>
+    /// 强制更新(不更新无法进入游戏。)
+    /// </summary>
+    Force = 1,
+
+    /// <summary>
+    /// 非强制(不更新可以进入游戏。)
+    /// </summary>
+    Optional = 2,
 }
 
+/// <summary>
+/// 是否提示更新。
+/// </summary>
 public enum UpdateNotice
 {
-    None = 0,
-    Notice = 1, //提示
-    NoNotice = 2, //非提示
+    /// <summary>
+    /// 更新存在提示。
+    /// </summary>
+    Notice = 1,
+    /// <summary>
+    /// 更新非提示。
+    /// </summary>
+    NoNotice = 2,
 }
 
 public enum GameStatus
@@ -37,60 +54,14 @@ public enum GameStatus
 }
 
 /// <summary>
-/// 资源存放地
+/// WebGL平台下，
+/// StreamingAssets：跳过远程下载资源直接访问StreamingAssets
+/// Remote：访问远程资源
 /// </summary>
-[Serializable]
-public class ResourcesArea
+public enum LoadResWayWebGL
 {
-    [Tooltip("资源管理类型")] [SerializeField] private string m_ResAdminType = "Default";
-
-    public string ResAdminType
-    {
-        get { return m_ResAdminType; }
-    }
-
-    [Tooltip("资源管理编号")] [SerializeField] private string m_ResAdminCode = "0";
-
-    public string ResAdminCode
-    {
-        get { return m_ResAdminCode; }
-    }
-
-    [SerializeField] private ServerTypeEnum m_ServerType = ServerTypeEnum.Intranet;
-
-    public ServerTypeEnum ServerType
-    {
-        get { return m_ServerType; }
-    }
-
-    [Tooltip("是否在构建资源的时候清理上传到服务端目录的老资源")] [SerializeField]
-    private bool m_CleanCommitPathRes = true;
-
-    public bool CleanCommitPathRes
-    {
-        get { return m_CleanCommitPathRes; }
-    }
-
-    [Tooltip("内网地址")] [SerializeField] private string m_InnerResourceSourceUrl = "http://127.0.0.1:8081";
-
-    public string InnerResourceSourceUrl
-    {
-        get { return m_InnerResourceSourceUrl; }
-    }
-
-    [Tooltip("外网地址")] [SerializeField] private string m_ExtraResourceSourceUrl = "http://127.0.0.1:8081";
-
-    public string ExtraResourceSourceUrl
-    {
-        get { return m_ExtraResourceSourceUrl; }
-    }
-
-    [Tooltip("正式地址")] [SerializeField] private string m_FormalResourceSourceUrl = "http://127.0.0.1:8081";
-
-    public string FormalResourceSourceUrl
-    {
-        get { return m_FormalResourceSourceUrl; }
-    }
+    Remote,
+    StreamingAssets,
 }
 
 [Serializable]
@@ -112,133 +83,121 @@ public class ServerChannelInfo
 [Serializable]
 public class FrameworkGlobalSettings
 {
-    [SerializeField] [Tooltip("脚本作者名")] private string m_ScriptAuthor = "Default";
-
-    public string ScriptAuthor
+    [Header("Resources")]
+    /// <summary>
+    /// 项目名称。
+    /// </summary>
+    [SerializeField]
+    private string m_ProjectName = "Demo";
+    public string ProjectName
     {
-        get { return m_ScriptAuthor; }
+        get { return m_ProjectName; }
     }
 
-    [SerializeField] [Tooltip("版本")] private string m_ScriptVersion = "0.1";
-
-    public string ScriptVersion
+    /// <summary>
+    /// 资源服务器地址。
+    /// </summary>
+    [SerializeField]
+    private string m_MainResDownLoadPath = "http://127.0.0.1:8081";
+    public string MainResDownLoadPath
     {
-        get { return m_ScriptVersion; }
+        get { return m_MainResDownLoadPath; }
     }
 
-    [SerializeField] private AppStageEnum m_AppStage = AppStageEnum.Debug;
-
-    public AppStageEnum AppStage
+    /// <summary>
+    /// 资源服务备用地址。
+    /// </summary>
+    [SerializeField]
+    private string m_FallbackResDownLoadPath = "http://127.0.0.1:8082";
+    public string FallbackResDownLoadPath
     {
-        get { return m_AppStage; }
+        get { return m_FallbackResDownLoadPath; }
     }
 
-    [Header("Resources")] [Tooltip("资源存放地")] [SerializeField]
-    private ResourcesArea m_ResourcesArea;
-
-    public ResourcesArea ResourcesArea
+    [Header("Update")]
+    [Tooltip("更新设置")]
+    [SerializeField]
+    private UpdateStyle m_UpdateStyle = UpdateStyle.Force;
+    public UpdateStyle UpdateStyle
     {
-        get { return m_ResourcesArea; }
+        get { return m_UpdateStyle; }
     }
 
-    [Header("SpriteCollection")] [SerializeField]
-    private string m_AtlasFolder = "Assets/AssetRaw/Atlas";
-
-    public string AtlasFolder
+    [SerializeField]
+    private UpdateNotice m_UpdateNotice = UpdateNotice.Notice;
+    public UpdateNotice UpdateNotice
     {
-        get { return m_AtlasFolder; }
+        get { return m_UpdateNotice; }
     }
 
-    public string WindowsAppUrl = "http://127.0.0.1";
-    public string MacOSAppUrl = "http://127.0.0.1";
-    public string IOSAppUrl = "http://127.0.0.1";
-    public string AndroidAppUrl = "http://127.0.0.1";
-    [Header("Server")] [SerializeField] private string m_CurUseServerChannel;
-
+    [Header("Server")]
+    [SerializeField]
+    private string m_CurUseServerChannel;
     public string CurUseServerChannel
     {
         get => m_CurUseServerChannel;
     }
 
-    [SerializeField] private List<ServerChannelInfo> m_ServerChannelInfos;
-
+    [SerializeField]
+    private List<ServerChannelInfo> m_ServerChannelInfos;
     public List<ServerChannelInfo> ServerChannelInfos
     {
         get => m_ServerChannelInfos;
     }
-    
-    [SerializeField] private string @namespace = "GameLogic";
-    
-    [Header("PreLoad")] [SerializeField]
-    private string[] m_PreLoadTags = new []{"PRELOAD"};
 
+    [SerializeField]
+    private string @namespace = "GameLogic";
+
+    [Header("PreLoad")]
+    [SerializeField]
+    private string[] m_PreLoadTags = new[] { "PRELOAD" };
     public string[] PreLoadTags => m_PreLoadTags;
 
+    [Header("WebGL PreLoad")]
+    [SerializeField]
+    private string[] m_WebGLPreLoadTags = new[] { "WEBGL_PRELOAD" };
+    public string[] WebGLPreLoadTags => m_WebGLPreLoadTags;
+
+    /// <summary>
+    /// WebGL平台加载本地资源/加载远程资源。
+    /// </summary>
+    [Header("WebGL LoadMode")]
+    [Tooltip("WebGL设置")]
+    [SerializeField]
+    private LoadResWayWebGL m_LoadResWayWebGL = LoadResWayWebGL.Remote;
+    public LoadResWayWebGL LoadResWayWebGL
+    {
+        get => m_LoadResWayWebGL;
+    }
+
+    /// <summary>
+    /// 是否自动你讲打包资源复制到打包后的StreamingAssets地址
+    /// </summary>
+    [Header("构建资源设置")]
+    [SerializeField]
+    private bool isAutoAssetCopeToBuildAddress = false;
+    /// <summary>
+    /// 是否自动你讲打包资源复制到打包后的StreamingAssets地址
+    /// </summary>
+    /// <returns></returns>
+    public bool IsAutoAssetCopeToBuildAddress
+    {
+        get => isAutoAssetCopeToBuildAddress;
+    }
+
+    /// <summary>
+    /// 打包程序资源地址
+    /// </summary>
+    [SerializeField]
+    private string buildAddress = "../../Builds/Unity_Data/StreamingAssets";
+    /// <summary>
+    /// 获取打包程序资源地址
+    /// </summary>
+    /// <returns></returns>
+    public string BuildAddress
+    {
+        get => buildAddress;
+    }
+
     public string NameSpace => @namespace;
-
-    [SerializeField] private string @uiWidgetName = "m_item";
-
-    public string UIWidgetName => @uiWidgetName;
-    
-    [SerializeField] private List<ScriptGenerateRuler> scriptGenerateRule = new List<ScriptGenerateRuler>()
-    {
-        new ScriptGenerateRuler("m_go", "GameObject"),
-        new ScriptGenerateRuler("m_item", "GameObject"),
-        new ScriptGenerateRuler("m_tf", "Transform"),
-        new ScriptGenerateRuler("m_rect", "RectTransform"),
-        new ScriptGenerateRuler("m_text", "Text"),
-        new ScriptGenerateRuler("m_richText", "RichTextItem"),
-        new ScriptGenerateRuler("m_btn", "Button"),
-        new ScriptGenerateRuler("m_img", "Image"),
-        new ScriptGenerateRuler("m_rimg", "RawImage"),
-        new ScriptGenerateRuler("m_scrollBar", "Scrollbar"),
-        new ScriptGenerateRuler("m_scroll", "ScrollRect"),
-        new ScriptGenerateRuler("m_input", "InputField"),
-        new ScriptGenerateRuler("m_grid", "GridLayoutGroup"),
-        new ScriptGenerateRuler("m_hlay", "HorizontalLayoutGroup"),
-        new ScriptGenerateRuler("m_vlay", "VerticalLayoutGroup"),
-        new ScriptGenerateRuler("m_red", "RedNoteBehaviour"),
-        new ScriptGenerateRuler("m_slider", "Slider"),
-        new ScriptGenerateRuler("m_group", "ToggleGroup"),
-        new ScriptGenerateRuler("m_curve", "AnimationCurve"),
-        new ScriptGenerateRuler("m_canvasGroup", "CanvasGroup"),
-#if ENABLE_TEXTMESHPRO
-        new ScriptGenerateRuler("m_tmp","TextMeshProUGUI"),
-#endif
-    };
-
-    public List<ScriptGenerateRuler> ScriptGenerateRule => scriptGenerateRule;
 }
-
-[Serializable]
-public class ScriptGenerateRuler
-{
-    public string uiElementRegex;
-    public string componentName;
-
-    public ScriptGenerateRuler(string uiElementRegex, string componentName)
-    {
-        this.uiElementRegex = uiElementRegex;
-        this.componentName = componentName;
-    }
-}
-
-#if UNITY_EDITOR
-[CustomPropertyDrawer(typeof(ScriptGenerateRuler))]
-public class ScriptGenerateRulerDrawer : PropertyDrawer
-{
-    public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
-    {
-        EditorGUI.BeginProperty(position, label, property);
-        position = EditorGUI.PrefixLabel(position, GUIUtility.GetControlID(FocusType.Passive), label);
-        var indent = EditorGUI.indentLevel;
-        EditorGUI.indentLevel = 0;
-        var uiElementRegexRect = new Rect(position.x, position.y, 120, position.height);
-        var componentNameRect = new Rect(position.x + 125, position.y, 150, position.height);
-        EditorGUI.PropertyField(uiElementRegexRect, property.FindPropertyRelative("uiElementRegex"), GUIContent.none);
-        EditorGUI.PropertyField(componentNameRect, property.FindPropertyRelative("componentName"), GUIContent.none);
-        EditorGUI.indentLevel = indent;
-        EditorGUI.EndProperty();
-    }
-}
-#endif

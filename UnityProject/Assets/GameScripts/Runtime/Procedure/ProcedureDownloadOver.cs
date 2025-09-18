@@ -3,7 +3,7 @@ using ProcedureOwner = GameFramework.Fsm.IFsm<GameFramework.Procedure.IProcedure
 
 namespace GameMain
 {
-    public class ProcedureDownloadOver:ProcedureBase
+    public class ProcedureDownloadOver : ProcedureBase
     {
         public override bool UseNativeDialog { get; }
 
@@ -12,8 +12,11 @@ namespace GameMain
         protected override void OnEnter(ProcedureOwner procedureOwner)
         {
             Log.Info("下载完成!!!");
-            
-            UILoadMgr.Show(UIDefine.UILoadUpdate,$"下载完成...");
+
+            UILoadMgr.Show(UIDefine.UILoadUpdate, $"下载完成...");
+
+            // 下载完成之后再保存本地版本。
+            GameModule.Setting.SetString("GAME_VERSION", _resourceManager.PackageVersion);
         }
 
         protected override void OnUpdate(ProcedureOwner procedureOwner, float elapseSeconds, float realElapseSeconds)

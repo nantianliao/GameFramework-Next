@@ -21,7 +21,7 @@ namespace UnityGameFramework.Runtime
         private void OnLoadAssetFailure(string assetName, LoadResourceStatus status, string errormessage, object userdata)
         {
             _assetLoadingList.Remove(assetName);
-            Log.Error("Can not load asset from '{1}' with error message '{2}'.", assetName, errormessage);
+            Log.Error("Can not load asset from '{0}' with error message '{1}'.", assetName, errormessage);
         }
 
         private void OnLoadAssetSuccess(string assetName, object asset, float duration, object userdata)
@@ -47,7 +47,7 @@ namespace UnityGameFramework.Runtime
         public async UniTaskVoid SetAssetByResources<T>(ISetAssetObject setAssetObject) where T : UnityEngine.Object
         {
             await TryWaitingLoading(setAssetObject.Location);
-            
+
             if (m_AssetItemPool.CanSpawn(setAssetObject.Location))
             {
                 var assetObject = (T)m_AssetItemPool.Spawn(setAssetObject.Location).Target;

@@ -22,7 +22,7 @@ namespace GameMain
         {
             await UniTask.Delay(TimeSpan.FromSeconds(0.5f));
 
-            var downloader = GameModule.Resource.CreateResourceDownloader();
+            var downloader = _resourceManager.CreateResourceDownloader();
 
             if (downloader.TotalDownloadCount == 0)
             {

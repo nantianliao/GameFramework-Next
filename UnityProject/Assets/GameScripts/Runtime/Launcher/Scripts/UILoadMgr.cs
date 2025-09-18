@@ -18,7 +18,7 @@ namespace GameMain
         /// </summary>
         public static void Initialize()
         {
-            _uiRoot = GameObject.Find("UIRoot/UICanvas")?.transform;
+            _uiRoot = GameModule.UI.UIRoot;
             if (_uiRoot == null)
             {
                 Log.Error("Failed to Find UIRoot. Please check the resource path");
@@ -62,6 +62,7 @@ namespace GameMain
                     {
                         ui.transform.SetParent(_uiRoot.transform);
                         ui.transform.localScale = Vector3.one;
+                        ui.transform.localRotation = Quaternion.identity;
                         ui.transform.localPosition = Vector3.zero;
                         RectTransform rect = ui.GetComponent<RectTransform>();
                         rect.sizeDelta = Vector2.zero;
@@ -114,7 +115,11 @@ namespace GameMain
         /// <returns></returns>
         public static UIBase GetActiveUI(string ui)
         {
-            return _uiMap.GetValueOrDefault(ui);
+            // return _uiMap.GetValueOrDefault(ui);
+
+            UIBase target = null;
+            _uiMap.TryGetValue(ui, out target);
+            return target;
         }
 
         /// <summary>

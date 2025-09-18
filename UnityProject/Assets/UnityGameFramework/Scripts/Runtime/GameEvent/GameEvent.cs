@@ -96,7 +96,7 @@ namespace UnityGameFramework.Runtime
         {
             return s_EventMgr.Dispatcher.AddEventListener(eventType, handler);
         }
-        
+
         /// <summary>
         /// 增加事件监听。
         /// </summary>
@@ -532,7 +532,7 @@ namespace UnityGameFramework.Runtime
         /// <typeparam name="TArg4">事件参数4类型。</typeparam>
         public static void Send<TArg1, TArg2, TArg3, TArg4>(string eventType, TArg1 arg1, TArg2 arg2, TArg3 arg3, TArg4 arg4)
         {
-            s_EventMgr.Dispatcher.Send(StringId.StringToHash(eventType), arg1, arg2, arg3);
+            s_EventMgr.Dispatcher.Send(StringId.StringToHash(eventType), arg1, arg2, arg3, arg4);
         }
 
         /// <summary>
@@ -553,7 +553,7 @@ namespace UnityGameFramework.Runtime
         {
             s_EventMgr.Dispatcher.Send(StringId.StringToHash(eventType), arg1, arg2, arg3, arg4, arg5);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -583,6 +583,14 @@ namespace UnityGameFramework.Runtime
         public static void Send(string eventType, Delegate handler)
         {
             s_EventMgr.Dispatcher.Send(StringId.StringToHash(eventType), handler);
+        }
+
+        /// <summary>
+        /// 清除事件。
+        /// </summary>
+        public static void Shutdown()
+        {
+            s_EventMgr.Init();
         }
 
         #endregion

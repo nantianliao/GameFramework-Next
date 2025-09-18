@@ -5,8 +5,8 @@ namespace GameLogic
     [EventInterface(EEventGroup.GroupUI)]
     public interface ILoginUI
     {
-        public void OnRoleLogin();
+        void OnRoleLogin();
 
-        public void OnRoleLoginOut(int a1, bool b2);
+        void OnRoleLoginOut(int a1, bool b2);
     }
 }

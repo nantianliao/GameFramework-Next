@@ -29,12 +29,22 @@ public class GameFrameworkSettingsProvider : SettingsProvider
     public override void OnGUI(string searchContext)
     {
         base.OnGUI(searchContext);
-        using var changeCheckScope = new EditorGUI.ChangeCheckScope();
-        EditorGUILayout.PropertyField(m_CustomSettings.FindProperty("m_FrameworkGlobalSettings"));
-        EditorGUILayout.PropertyField(m_CustomSettings.FindProperty("m_HybridCLRCustomGlobalSettings"));
-        EditorGUILayout.Space(20);
-        if (!changeCheckScope.changed) return;
-        m_CustomSettings.ApplyModifiedPropertiesWithoutUndo();
+        using (EditorGUI.ChangeCheckScope changeCheckScope = new EditorGUI.ChangeCheckScope())
+        {
+            EditorGUILayout.PropertyField(m_CustomSettings.FindProperty("m_FrameworkGlobalSettings"));
+            EditorGUILayout.PropertyField(m_CustomSettings.FindProperty("m_HybridCLRCustomGlobalSettings"));
+            EditorGUILayout.Space(20);
+
+            if (!changeCheckScope.changed) return;
+
+            // using var changeCheckScope = new EditorGUI.ChangeCheckScope();
+            // EditorGUILayout.PropertyField(m_CustomSettings.FindProperty("m_FrameworkGlobalSettings"));
+            // EditorGUILayout.PropertyField(m_CustomSettings.FindProperty("m_HybridCLRCustomGlobalSettings"));
+            // EditorGUILayout.Space(20);
+            // if (!changeCheckScope.changed) return;
+
+            m_CustomSettings.ApplyModifiedPropertiesWithoutUndo();
+        }
     }
 
     public GameFrameworkSettingsProvider(string path, SettingsScope scopes, IEnumerable<string> keywords = null) : base(path, scopes, keywords)

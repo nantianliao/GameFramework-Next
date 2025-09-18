@@ -3,11 +3,12 @@ using System.Reflection;
 using GameLogic;
 using GameFramework;
 using UnityGameFramework.Runtime;
+using Cysharp.Threading.Tasks;
 
-public partial class GameApp: Singleton<GameApp>
+public partial class GameApp : Singleton<GameApp>
 {
     private static List<Assembly> s_HotfixAssembly;
-    
+
     /// <summary>
     /// 热更域App主入口。
     /// </summary>

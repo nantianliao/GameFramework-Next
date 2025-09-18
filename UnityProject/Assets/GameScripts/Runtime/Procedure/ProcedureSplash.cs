@@ -14,8 +14,6 @@ namespace GameMain
         {
             base.OnUpdate(procedureOwner, elapseSeconds, realElapseSeconds);
             //播放 Splash 动画
-            //热更新阶段文本初始化
-            LoadText.Instance.InitConfigData(null);
             //热更新UI初始化
             UILoadMgr.Initialize();
             //初始化资源包

@@ -13,6 +13,14 @@ namespace UnityGameFramework.Runtime
         /// </summary>
         private static readonly Dictionary<int, EventDelegateData> s_EventTable = new Dictionary<int, EventDelegateData>();
 
+        /// <summary>
+        /// 清空事件表。
+        /// </summary>
+        internal void ClearEventTable()
+        {
+            s_EventTable.Clear();
+        }
+
         #region 事件管理接口
 
         /// <summary>

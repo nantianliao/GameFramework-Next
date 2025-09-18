@@ -127,7 +127,7 @@ namespace GameLogic
 
             TProfiler.BeginSample("OnUpdate");
             bool needUpdate = false;
-            if (listNextUpdateChild is not { Count: > 0 })
+            if (listNextUpdateChild == null || listNextUpdateChild.Count <= 0)
             {
                 HasOverrideUpdate = true;
                 OnUpdate();
@@ -282,7 +282,7 @@ namespace GameLogic
         /// 组件被销毁调用。
         /// <remarks>请勿手动调用！</remarks>
         /// </summary>
-        internal void OnDestroyWidget()
+        protected internal void OnDestroyWidget()
         {
             Parent?.SetUpdateDirty();
             

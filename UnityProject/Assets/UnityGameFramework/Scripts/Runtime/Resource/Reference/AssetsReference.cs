@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityGameFramework.Runtime;
 using Object = UnityEngine.Object;
 
 namespace GameFramework.Resource
@@ -19,31 +20,82 @@ namespace GameFramework.Resource
         }
     }
 
+    [DisallowMultipleComponent]
     public sealed class AssetsReference : MonoBehaviour
     {
-        [SerializeField] private GameObject _sourceGameObject;
+        [SerializeField]
+        private GameObject _sourceGameObject;
 
-        [SerializeField] private List<AssetsRefInfo> _refAssetInfoList;
+        [SerializeField]
+        private List<AssetsRefInfo> _refAssetInfoList;
 
         private IResourceManager _resourceManager;
 
-        private void OnDestroy()
+        private static Dictionary<GameObject, AssetsReference> _originalRefs = new Dictionary<GameObject, AssetsReference>();
+
+        private void CheckInit()
         {
-            if (_resourceManager == null)
+            if (_resourceManager != null)
+            {
+                return;
+            }
+            else
             {
                 _resourceManager = GameFrameworkSystem.GetModule<IResourceManager>();
             }
 
             if (_resourceManager == null)
             {
-                throw new GameFrameworkException($"ResourceManager is null.");
+                throw new GameFrameworkException($"resourceModule is null.");
             }
+        }
 
+        private void CheckRelease()
+        {
             if (_sourceGameObject != null)
             {
                 _resourceManager.UnloadAsset(_sourceGameObject);
             }
+            else
+            {
+                Log.Warning($"sourceGameObject is not invalid.");
+            }
+        }
 
+        private void Awake()
+        {
+            // If it is a clone, clear the reference records before cloning
+            if (!IsOriginalInstance())
+            {
+                ClearCloneReferences();
+            }
+        }
+
+        private bool IsOriginalInstance()
+        {
+            return _originalRefs.TryGetValue(gameObject, out var originalComponent) &&
+                   originalComponent == this;
+        }
+
+        private void ClearCloneReferences()
+        {
+            _sourceGameObject = null;
+            _refAssetInfoList?.Clear();
+        }
+
+        private void OnDestroy()
+        {
+            CheckInit();
+            if (_sourceGameObject != null)
+            {
+                CheckRelease();
+            }
+
+            ReleaseRefAssetInfoList();
+        }
+
+        private void ReleaseRefAssetInfoList()
+        {
             if (_refAssetInfoList != null)
             {
                 foreach (var refInfo in _refAssetInfoList)
@@ -69,10 +121,16 @@ namespace GameFramework.Resource
 
             _resourceManager = resourceManager;
             _sourceGameObject = source;
+
+            if (!_originalRefs.ContainsKey(gameObject))
+            {
+                _originalRefs.Add(gameObject, this);
+            }
+
             return this;
         }
 
-        public AssetsReference Ref<T>(T source, IResourceManager resourceManager = null) where T : UnityEngine.Object
+        public AssetsReference Ref<T>(T source, IResourceManager resourceManager = null) where T : Object
         {
             if (source == null)
             {
@@ -80,7 +138,10 @@ namespace GameFramework.Resource
             }
 
             _resourceManager = resourceManager;
-            _refAssetInfoList = new List<AssetsRefInfo>();
+            if (_refAssetInfoList == null)
+            {
+                _refAssetInfoList = new List<AssetsRefInfo>();
+            }
             _refAssetInfoList.Add(new AssetsRefInfo(source));
             return this;
         }
@@ -113,7 +174,8 @@ namespace GameFramework.Resource
                 throw new GameFrameworkException($"Source gameObject is in scene.");
             }
 
-            return instance.GetOrAddComponent<AssetsReference>().Ref(source, resourceManager);
+            var comp = instance.GetComponent<AssetsReference>();
+            return comp ? comp.Ref(source, resourceManager) : instance.AddComponent<AssetsReference>().Ref(source, resourceManager);
         }
 
         public static AssetsReference Ref<T>(T source, GameObject instance, IResourceManager resourceManager = null) where T : UnityEngine.Object
@@ -123,7 +185,8 @@ namespace GameFramework.Resource
                 throw new GameFrameworkException($"Source gameObject is null.");
             }
 
-            return instance.GetOrAddComponent<AssetsReference>().Ref(source, resourceManager);
+            var comp = instance.GetComponent<AssetsReference>();
+            return comp ? comp.Ref(source, resourceManager) : instance.AddComponent<AssetsReference>().Ref(source, resourceManager);
         }
     }
 }

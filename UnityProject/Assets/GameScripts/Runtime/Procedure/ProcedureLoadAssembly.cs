@@ -12,6 +12,7 @@ using GameFramework.Fsm;
 using GameFramework.Procedure;
 using UnityGameFramework.Runtime;
 using YooAsset;
+using Cysharp.Threading.Tasks;
 
 namespace GameMain
 {
@@ -33,16 +34,28 @@ namespace GameMain
         private Assembly m_MainLogicAssembly;
         private List<Assembly> m_HotfixAssemblys;
         private IFsm<IProcedureManager> m_ProcedureOwner;
+        private HybridCLRCustomGlobalSettings _setting;
+
+        protected override void OnInit(IFsm<IProcedureManager> procedureOwner)
+        {
+            base.OnInit(procedureOwner);
+            _setting = SettingsUtils.HybridCLRCustomGlobalSettings;
+        }
 
         protected override void OnEnter(IFsm<IProcedureManager> procedureOwner)
         {
             base.OnEnter(procedureOwner);
             m_ProcedureOwner = procedureOwner;
+            LoadAssembly().Forget();
+        }
+
+        private async UniTaskVoid LoadAssembly()
+        {
             m_LoadAssemblyComplete = false;
             m_HotfixAssemblys = new List<Assembly>();
 
             //AOT Assembly加载原始metadata
-            if (SettingsUtils.HybridCLRCustomGlobalSettings.Enable)
+            if (_setting.Enable)
             {
 #if !UNITY_EDITOR
                 m_LoadMetadataAssemblyComplete = false;
@@ -56,15 +69,15 @@ namespace GameMain
                 m_LoadMetadataAssemblyComplete = true;
             }
 
-            if (!SettingsUtils.HybridCLRCustomGlobalSettings.Enable || GameModule.Resource.PlayMode == EPlayMode.EditorSimulateMode)
+            if (!_setting.Enable || _resourceManager.PlayMode == EPlayMode.EditorSimulateMode)
             {
                 m_MainLogicAssembly = GetMainLogicAssembly();
             }
             else
             {
-                if (SettingsUtils.HybridCLRCustomGlobalSettings.Enable)
+                if (_setting.Enable)
                 {
-                    foreach (string hotUpdateDllName in SettingsUtils.HybridCLRCustomGlobalSettings.HotUpdateAssemblies)
+                    foreach (string hotUpdateDllName in _setting.HotUpdateAssemblies)
                     {
                         var assetLocation = hotUpdateDllName;
                         if (!m_EnableAddressable)
@@ -72,13 +85,14 @@ namespace GameMain
                             assetLocation = Utility.Path.GetRegularPath(
                                 Path.Combine(
                                     "Assets",
-                                    SettingsUtils.HybridCLRCustomGlobalSettings.AssemblyTextAssetPath,
-                                    $"{hotUpdateDllName}{SettingsUtils.HybridCLRCustomGlobalSettings.AssemblyTextAssetExtension}"));
+                                    _setting.AssemblyTextAssetPath,
+                                    $"{hotUpdateDllName}{_setting.AssemblyTextAssetExtension}"));
                         }
 
                         Log.Debug($"LoadAsset: [ {assetLocation} ]");
                         m_LoadAssetCount++;
-                        GameModule.Resource.LoadAsset<TextAsset>(assetLocation, LoadAssetSuccess);
+                        var result = await _resourceManager.LoadAssetAsync<TextAsset>(assetLocation);
+                        LoadAssetSuccess(result);
                     }
 
                     m_LoadAssemblyWait = true;
@@ -146,13 +160,13 @@ namespace GameMain
             Assembly mainLogicAssembly = null;
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                if (string.Compare(SettingsUtils.HybridCLRCustomGlobalSettings.LogicMainDllName, $"{assembly.GetName().Name}.dll",
+                if (string.Compare(_setting.LogicMainDllName, $"{assembly.GetName().Name}.dll",
                         StringComparison.Ordinal) == 0)
                 {
                     mainLogicAssembly = assembly;
                 }
 
-                foreach (var hotUpdateDllName in SettingsUtils.HybridCLRCustomGlobalSettings.HotUpdateAssemblies)
+                foreach (var hotUpdateDllName in _setting.HotUpdateAssemblies)
                 {
                     if (hotUpdateDllName == $"{assembly.GetName().Name}.dll")
                     {
@@ -160,7 +174,7 @@ namespace GameMain
                     }
                 }
 
-                if (mainLogicAssembly != null && m_HotfixAssemblys.Count == SettingsUtils.HybridCLRCustomGlobalSettings.HotUpdateAssemblies.Count)
+                if (mainLogicAssembly != null && m_HotfixAssemblys.Count == _setting.HotUpdateAssemblies.Count)
                 {
                     break;
                 }
@@ -189,7 +203,7 @@ namespace GameMain
             try
             {
                 var assembly = Assembly.Load(textAsset.bytes);
-                if (string.Compare(SettingsUtils.HybridCLRCustomGlobalSettings.LogicMainDllName, assetName, StringComparison.Ordinal) == 0)
+                if (string.Compare(_setting.LogicMainDllName, assetName, StringComparison.Ordinal) == 0)
                 {
                     m_MainLogicAssembly = assembly;
                 }
@@ -220,13 +234,13 @@ namespace GameMain
 
             // 注意，补充元数据是给AOT dll补充元数据，而不是给热更新dll补充元数据。
             // 热更新dll不缺元数据，不需要补充，如果调用LoadMetadataForAOTAssembly会返回错误
-            if (SettingsUtils.HybridCLRCustomGlobalSettings.AOTMetaAssemblies.Count == 0)
+            if (_setting.AOTMetaAssemblies.Count == 0)
             {
                 m_LoadMetadataAssemblyComplete = true;
                 return;
             }
 
-            foreach (string aotDllName in SettingsUtils.HybridCLRCustomGlobalSettings.AOTMetaAssemblies)
+            foreach (string aotDllName in _setting.AOTMetaAssemblies)
             {
                 var assetLocation = aotDllName;
                 if (!m_EnableAddressable)
@@ -234,14 +248,14 @@ namespace GameMain
                     assetLocation = Utility.Path.GetRegularPath(
                         Path.Combine(
                             "Assets",
-                            SettingsUtils.HybridCLRCustomGlobalSettings.AssemblyTextAssetPath,
-                            $"{aotDllName}{SettingsUtils.HybridCLRCustomGlobalSettings.AssemblyTextAssetExtension}"));
+                            _setting.AssemblyTextAssetPath,
+                            $"{aotDllName}{_setting.AssemblyTextAssetExtension}"));
                 }
 
 
                 Log.Debug($"LoadMetadataAsset: [ {assetLocation} ]");
                 m_LoadMetadataAssetCount++;
-                GameModule.Resource.LoadAsset<TextAsset>(assetLocation, LoadMetadataAssetSuccess);
+                _resourceManager.LoadAsset<TextAsset>(assetLocation, LoadMetadataAssetSuccess);
             }
 
             m_LoadMetadataAssemblyWait = true;
@@ -272,7 +286,7 @@ namespace GameMain
 #if ENABLE_HYBRIDCLR
                     // 加载assembly对应的dll，会自动为它hook。一旦Aot泛型函数的native函数不存在，用解释器版本代码
                     HomologousImageMode mode = HomologousImageMode.SuperSet;
-                    LoadImageErrorCode err = (LoadImageErrorCode)HybridCLR.RuntimeApi.LoadMetadataForAOTAssembly(dllBytes,mode); 
+                    LoadImageErrorCode err = (LoadImageErrorCode)HybridCLR.RuntimeApi.LoadMetadataForAOTAssembly(dllBytes, mode);
                     Log.Warning($"LoadMetadataForAOTAssembly:{assetName}. mode:{mode} ret:{err}");
 #endif
                 }

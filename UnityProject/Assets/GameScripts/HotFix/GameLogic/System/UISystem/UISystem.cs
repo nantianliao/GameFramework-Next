@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using GameBase;
 using GameFramework;
 using UnityEngine;
@@ -12,10 +14,14 @@ namespace GameLogic
     /// </summary>
     public sealed partial class UISystem : BaseLogicSys<UISystem>
     {
-        private bool m_EnableErrorLog = true;
+        // 核心字段
+        private static Transform _instanceRoot = null;          // UI根节点变换组件
+        private bool m_EnableErrorLog = true;                    // 是否启用错误日志
+        private Camera _uiCamera = null;                        // UI专用摄像机
+        private readonly List<UIWindow> _uiStack = new List<UIWindow>(128); // 窗口堆栈
+        private ErrorLogger _errorLogger;                       // 错误日志记录器
 
-        private readonly List<UIWindow> _stack = new List<UIWindow>(128);
-
+        // 常量定义
         internal const int LAYER_DEEP = 2000;
         internal const int WINDOW_DEEP = 100;
         internal const int WINDOW_HIDE_LAYER = 2; // Ignore Raycast
@@ -36,14 +42,18 @@ namespace GameLogic
         /// </summary>
         public Camera UICamera { private set; get; }
 
-        private ErrorLogger _errorLogger;
-        
+        /// <summary>
+        /// 模块初始化（自动调用）。
+        /// 1. 查找场景中的UIRoot
+        /// 2. 初始化资源加载器
+        /// 3. 配置错误日志系统
+        /// </summary>
         public override bool OnInit()
         {
             base.OnInit();
-            
+
             Log.Info("OnInit UISystem");
-            
+
             UICanvasTransform = GameObject.Find("UIRoot/UICanvas").transform;
 
             UICanvas = UICanvasTransform.GetComponent<Canvas>();
@@ -77,7 +87,7 @@ namespace GameLogic
             }
 
             UIController.RegisterAllController();
-            
+
             return true;
         }
 
@@ -97,12 +107,12 @@ namespace GameLogic
         /// </summary>
         public UIWindow GetTopWindow()
         {
-            if (_stack.Count == 0)
+            if (_uiStack.Count == 0)
             {
                 return null;
             }
 
-            UIWindow topWindow = _stack[^1];
+            UIWindow topWindow = _uiStack[_uiStack.Count - 1];
             return topWindow;
         }
 
@@ -112,11 +122,11 @@ namespace GameLogic
         public UIWindow GetTopWindow(int layer)
         {
             UIWindow lastOne = null;
-            for (int i = 0; i < _stack.Count; i++)
+            for (int i = 0; i < _uiStack.Count; i++)
             {
-                if (_stack[i].WindowLayer == layer)
+                if (_uiStack[i].WindowLayer == layer)
                 {
-                    lastOne = _stack[i];
+                    lastOne = _uiStack[i];
                 }
             }
 
@@ -127,7 +137,7 @@ namespace GameLogic
 
             return lastOne;
         }
-        
+
         /// <summary>
         /// 获取指定层级下顶部的窗口。
         /// </summary>
@@ -141,9 +151,9 @@ namespace GameLogic
         /// </summary>
         public bool IsAnyLoading()
         {
-            for (int i = 0; i < _stack.Count; i++)
+            for (int i = 0; i < _uiStack.Count; i++)
             {
-                var window = _stack[i];
+                var window = _uiStack[i];
                 if (window.IsLoadDone == false)
                     return true;
             }
@@ -176,9 +186,9 @@ namespace GameLogic
         /// </summary>
         /// <param name="userDatas">用户自定义数据。</param>
         /// <returns>打开窗口操作句柄。</returns>
-        public void ShowUIAsync<T>(params System.Object[] userDatas) where T : UIWindow
+        public void ShowUIAsync<T>(params System.Object[] userDatas) where T : UIWindow, new()
         {
-            ShowUIImp(typeof(T), true, userDatas);
+            ShowUIImp<T>(true, userDatas);
         }
 
         /// <summary>
@@ -198,9 +208,19 @@ namespace GameLogic
         /// <typeparam name="T">窗口类。</typeparam>
         /// <param name="userDatas">用户自定义数据。</param>
         /// <returns>打开窗口操作句柄。</returns>
-        public void ShowUI<T>(params System.Object[] userDatas) where T : UIWindow
+        public void ShowUI<T>(params System.Object[] userDatas) where T : UIWindow, new()
         {
-            ShowUIImp(typeof(T), false, userDatas);
+            ShowUIImp<T>(false, userDatas);
+        }
+
+        /// <summary>
+        /// 异步打开窗口。
+        /// </summary>
+        /// <param name="userDatas">用户自定义数据。</param>
+        /// <returns>打开窗口操作句柄。</returns>
+        public async UniTask<T> ShowUIAsyncAwait<T>(params System.Object[] userDatas) where T : UIWindow, new()
+        {
+            return await ShowUIAwaitImp<T>(true, userDatas) as T;
         }
 
         /// <summary>
@@ -218,19 +238,67 @@ namespace GameLogic
         {
             string windowName = type.FullName;
 
-            // 如果窗口已经存在
+            if (!TryGetWindow(windowName, out UIWindow window, userDatas))
+            {
+                window = CreateInstance(type);
+                Push(window); //首次压入
+                window.InternalLoad(window.AssetName, OnWindowPrepare, isAsync, userDatas).Forget();
+            }
+        }
+
+        private void ShowUIImp<T>(bool isAsync, params System.Object[] userDatas) where T : UIWindow, new()
+        {
+            Type type = typeof(T);
+            string windowName = type.FullName;
+
+            if (!TryGetWindow(windowName, out UIWindow window, userDatas))
+            {
+                window = CreateInstance<T>();
+                Push(window); //首次压入
+                window.InternalLoad(window.AssetName, OnWindowPrepare, isAsync, userDatas).Forget();
+            }
+        }
+
+        private bool TryGetWindow(string windowName, out UIWindow window, params System.Object[] userDatas)
+        {
+            window = null;
             if (IsContains(windowName))
             {
-                UIWindow window = GetWindow(windowName);
+                window = GetWindow(windowName);
                 Pop(window); //弹出窗口
                 Push(window); //重新压入
                 window.TryInvoke(OnWindowPrepare, userDatas);
+
+                return true;
+            }
+            return false;
+        }
+
+        private async UniTask<T> ShowUIAwaitImp<T>(bool isAsync, params System.Object[] userDatas) where T : UIWindow, new()
+        {
+            Type type = typeof(T);
+            string windowName = type.FullName;
+
+            if (TryGetWindow(windowName, out UIWindow window, userDatas))
+            {
+                return window as T;
             }
             else
             {
-                UIWindow window = CreateInstance(type);
+                window = CreateInstance<T>();
                 Push(window); //首次压入
                 window.InternalLoad(window.AssetName, OnWindowPrepare, isAsync, userDatas).Forget();
+                float time = 0f;
+                while (!window.IsLoadDone)
+                {
+                    time += Time.deltaTime;
+                    if (time > 60f)
+                    {
+                        break;
+                    }
+                    await UniTask.Yield();
+                }
+                return window as T;
             }
         }
 
@@ -254,7 +322,7 @@ namespace GameLogic
             OnSortWindowDepth(window.WindowLayer);
             OnSetWindowVisible();
         }
-        
+
         public void HideUI<T>() where T : UIWindow
         {
             HideUI(typeof(T));
@@ -274,12 +342,19 @@ namespace GameLogic
                 CloseUI(type);
                 return;
             }
-            
+
+            window.CancelHideToCloseTimer();
             window.Visible = false;
+            window.IsHide = true;
             window.HideTimerId = GameModule.Timer.AddOnceTimer(window.HideTimeToClose * 1000, () =>
             {
                 CloseUI(type);
             });
+
+            if (window.FullScreen)
+            {
+                OnSetWindowVisible();
+            }
         }
 
         /// <summary>
@@ -287,13 +362,13 @@ namespace GameLogic
         /// </summary>
         public void CloseAll()
         {
-            for (int i = 0; i < _stack.Count; i++)
+            for (int i = 0; i < _uiStack.Count; i++)
             {
-                UIWindow window = _stack[i];
+                UIWindow window = _uiStack[i];
                 window.InternalDestroy();
             }
 
-            _stack.Clear();
+            _uiStack.Clear();
         }
 
         /// <summary>
@@ -301,16 +376,16 @@ namespace GameLogic
         /// </summary>
         public void CloseAllWithOut(UIWindow withOut)
         {
-            for (int i = _stack.Count - 1; i >= 0; i--)
+            for (int i = _uiStack.Count - 1; i >= 0; i--)
             {
-                UIWindow window = _stack[i];
+                UIWindow window = _uiStack[i];
                 if (window == withOut)
                 {
                     continue;
                 }
 
                 window.InternalDestroy();
-                _stack.RemoveAt(i);
+                _uiStack.RemoveAt(i);
             }
         }
 
@@ -319,16 +394,16 @@ namespace GameLogic
         /// </summary>
         public void CloseAllWithOut<T>() where T : UIWindow
         {
-            for (int i = _stack.Count - 1; i >= 0; i--)
+            for (int i = _uiStack.Count - 1; i >= 0; i--)
             {
-                UIWindow window = _stack[i];
+                UIWindow window = _uiStack[i];
                 if (window.GetType() == typeof(T))
                 {
                     continue;
                 }
 
                 window.InternalDestroy();
-                _stack.RemoveAt(i);
+                _uiStack.RemoveAt(i);
             }
         }
 
@@ -343,11 +418,11 @@ namespace GameLogic
         private void OnSortWindowDepth(int layer)
         {
             int depth = layer * LAYER_DEEP;
-            for (int i = 0; i < _stack.Count; i++)
+            for (int i = 0; i < _uiStack.Count; i++)
             {
-                if (_stack[i].WindowLayer == layer)
+                if (_uiStack[i].WindowLayer == layer)
                 {
-                    _stack[i].Depth = depth;
+                    _uiStack[i].Depth = depth;
                     depth += WINDOW_DEEP;
                 }
             }
@@ -356,11 +431,15 @@ namespace GameLogic
         private void OnSetWindowVisible()
         {
             bool isHideNext = false;
-            for (int i = _stack.Count - 1; i >= 0; i--)
+            for (int i = _uiStack.Count - 1; i >= 0; i--)
             {
-                UIWindow window = _stack[i];
+                UIWindow window = _uiStack[i];
                 if (isHideNext == false)
                 {
+                    if (window.IsHide)
+                    {
+                        continue;
+                    }
                     window.Visible = true;
                     if (window.IsPrepare && window.FullScreen)
                     {
@@ -372,6 +451,28 @@ namespace GameLogic
                     window.Visible = false;
                 }
             }
+        }
+
+        private UIWindow CreateInstance<T>() where T : UIWindow, new()
+        {
+            Type type = typeof(T);
+            UIWindow window = new T();
+            WindowAttribute attribute = Attribute.GetCustomAttribute(type, typeof(WindowAttribute)) as WindowAttribute;
+
+            if (window == null)
+                throw new GameFrameworkException($"Window {type.FullName} create instance failed.");
+
+            if (attribute != null)
+            {
+                string assetName = string.IsNullOrEmpty(attribute.Location) ? type.Name : attribute.Location;
+                window.Init(type.FullName, attribute.WindowLayer, attribute.FullScreen, assetName, attribute.FromResources, attribute.HideTimeToClose);
+            }
+            else
+            {
+                window.Init(type.FullName, (int)UILayer.UI, fullScreen: window.FullScreen, assetName: type.Name, fromResources: false, hideTimeToClose: 10);
+            }
+
+            return window;
         }
 
         private UIWindow CreateInstance(Type type)
@@ -395,11 +496,88 @@ namespace GameLogic
             return window;
         }
 
+        /// <summary>
+        /// 异步获取窗口。
+        /// </summary>
+        /// <returns>打开窗口操作句柄。</returns>
+        public async UniTask<T> GetUIAsyncAwait<T>(CancellationToken cancellationToken = default) where T : UIWindow
+        {
+            string windowName = typeof(T).FullName;
+            var window = GetWindow(windowName);
+            if (window == null)
+            {
+                return null;
+            }
+
+            var ret = window as T;
+
+            if (ret == null)
+            {
+                return null;
+            }
+
+            if (ret.IsLoadDone)
+            {
+                return ret;
+            }
+
+            float time = 0f;
+            while (!ret.IsLoadDone)
+            {
+                time += Time.deltaTime;
+                if (time > 60f)
+                {
+                    break;
+                }
+                await UniTask.Yield(cancellationToken: cancellationToken);
+            }
+            return ret;
+        }
+
+        /// <summary>
+        /// 异步获取窗口。
+        /// </summary>
+        /// <param name="callback">回调。</param>
+        /// <returns>打开窗口操作句柄。</returns>
+        public void GetUIAsync<T>(Action<T> callback) where T : UIWindow
+        {
+            string windowName = typeof(T).FullName;
+            var window = GetWindow(windowName);
+            if (window == null)
+            {
+                return;
+            }
+
+            var ret = window as T;
+
+            if (ret == null)
+            {
+                return;
+            }
+
+            GetUIAsyncImp(callback).Forget();
+
+            async UniTaskVoid GetUIAsyncImp(Action<T> ctx)
+            {
+                float time = 0f;
+                while (!ret.IsLoadDone)
+                {
+                    time += Time.deltaTime;
+                    if (time > 60f)
+                    {
+                        break;
+                    }
+                    await UniTask.Yield();
+                }
+                ctx?.Invoke(ret);
+            }
+        }
+
         private UIWindow GetWindow(string windowName)
         {
-            for (int i = 0; i < _stack.Count; i++)
+            for (int i = 0; i < _uiStack.Count; i++)
             {
-                UIWindow window = _stack[i];
+                UIWindow window = _uiStack[i];
                 if (window.WindowName == windowName)
                 {
                     return window;
@@ -411,9 +589,9 @@ namespace GameLogic
 
         private bool IsContains(string windowName)
         {
-            for (int i = 0; i < _stack.Count; i++)
+            for (int i = 0; i < _uiStack.Count; i++)
             {
-                UIWindow window = _stack[i];
+                UIWindow window = _uiStack[i];
                 if (window.WindowName == windowName)
                 {
                     return true;
@@ -431,9 +609,9 @@ namespace GameLogic
 
             // 获取插入到所属层级的位置
             int insertIndex = -1;
-            for (int i = 0; i < _stack.Count; i++)
+            for (int i = 0; i < _uiStack.Count; i++)
             {
-                if (window.WindowLayer == _stack[i].WindowLayer)
+                if (window.WindowLayer == _uiStack[i].WindowLayer)
                 {
                     insertIndex = i + 1;
                 }
@@ -442,9 +620,9 @@ namespace GameLogic
             // 如果没有所属层级，找到相邻层级
             if (insertIndex == -1)
             {
-                for (int i = 0; i < _stack.Count; i++)
+                for (int i = 0; i < _uiStack.Count; i++)
                 {
-                    if (window.WindowLayer > _stack[i].WindowLayer)
+                    if (window.WindowLayer > _uiStack[i].WindowLayer)
                     {
                         insertIndex = i + 1;
                     }
@@ -458,31 +636,31 @@ namespace GameLogic
             }
 
             // 最后插入到堆栈
-            _stack.Insert(insertIndex, window);
+            _uiStack.Insert(insertIndex, window);
         }
 
         private void Pop(UIWindow window)
         {
             // 从堆栈里移除
-            _stack.Remove(window);
+            _uiStack.Remove(window);
         }
 
         public override void OnUpdate()
         {
-            if (_stack == null)
+            if (_uiStack == null)
             {
                 return;
             }
 
-            int count = _stack.Count;
-            for (int i = 0; i < _stack.Count; i++)
+            int count = _uiStack.Count;
+            for (int i = 0; i < _uiStack.Count; i++)
             {
-                if (_stack.Count != count)
+                if (_uiStack.Count != count)
                 {
                     break;
                 }
 
-                var window = _stack[i];
+                var window = _uiStack[i];
                 window.InternalUpdate();
             }
         }

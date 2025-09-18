@@ -77,15 +77,15 @@ namespace UnityGameFramework.Runtime
                 case ELogLevel.Debug:
                     _stringBuilder.AppendFormat(
                         bColor
-                            ? "<color=gray><b>[Debug] ► </b></color> - <color=#00FF18>{0}</color>"
+                            ? "<color=#CFCFCF><b>[Debug] ► </b></color> - <color=#00FF18>{0}</color>"
                             : "<color=#00FF18><b>[Debug] ► </b></color> - {0}",
                         logString);
                     break;
                 case ELogLevel.Info:
                     _stringBuilder.AppendFormat(
                         bColor
-                            ? "<color=gray><b>[INFO] ► </b></color> - <color=gray>{0}</color>"
-                            : "<color=gray><b>[INFO] ► </b></color> - {0}",
+                            ? "<color=#CFCFCF><b>[INFO] ► </b></color> - <color=#CFCFCF>{0}</color>"
+                            : "<color=#CFCFCF><b>[INFO] ► </b></color> - {0}",
                         logString);
                     break;
                 case ELogLevel.Assert:

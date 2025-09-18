@@ -56,7 +56,7 @@ namespace GameFramework.Resource
                 if (!isShutdown)
                 {
                     AssetHandle handle = m_AssetHandle;
-                    if (handle is { IsValid: true })
+                    if (handle != null && handle.IsValid)
                     {
                         handle.Dispose();
                     }

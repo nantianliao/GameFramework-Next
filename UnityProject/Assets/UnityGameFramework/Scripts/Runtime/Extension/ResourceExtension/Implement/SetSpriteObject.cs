@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using GameFramework;
 using UnityEngine;
 using UnityEngine.UI;
@@ -21,86 +22,99 @@ namespace UnityGameFramework.Runtime
 #if ODIN_INSPECTOR
         [ShowInInspector]
 #endif
-        private SetType setType;
-        
-#if ODIN_INSPECTOR
-        [ShowInInspector]
-#endif
-        private Image m_Image;
-        
-#if ODIN_INSPECTOR
-        [ShowInInspector]
-#endif
-        private SpriteRenderer m_SpriteRenderer;
+        private SetType _setType;
 
 #if ODIN_INSPECTOR
         [ShowInInspector]
 #endif
-        private Sprite Sprite;
+        private Image _image;
+
+#if ODIN_INSPECTOR
+        [ShowInInspector]
+#endif
+        private SpriteRenderer _spriteRenderer;
+
+#if ODIN_INSPECTOR
+        [ShowInInspector]
+#endif
+        private Sprite _sprite;
 
         public string Location { get; private set; }
 
-        private bool m_SetNativeSize = false;
+        private bool _setNativeSize = false;
+        Action<Image> _imageCallback;
+        Action<SpriteRenderer> _spriteCallback;
+
+        private CancellationToken _cancellationToken;
 
         public void SetAsset(Object asset)
         {
-            Sprite = (Sprite)asset;
+            _sprite = (Sprite)asset;
 
-            if (m_Image != null)
+            if (_cancellationToken.IsCancellationRequested)
+                return;
+
+            if (_image != null)
             {
-                m_Image.sprite = Sprite;
-                if (m_SetNativeSize)
+                _image.sprite = _sprite;
+                if (_setNativeSize)
                 {
-                    m_Image.SetNativeSize();
+                    _image.SetNativeSize();
                 }
+                _imageCallback?.Invoke(_image);
             }
-            else if (m_SpriteRenderer != null)
+            else if (_spriteRenderer != null)
             {
-                m_SpriteRenderer.sprite = Sprite;
+                _spriteRenderer.sprite = _sprite;
+                _spriteCallback?.Invoke(_spriteRenderer);
             }
         }
 
         public bool IsCanRelease()
         {
-            if (setType == SetType.Image)
+            if (_setType == SetType.Image)
             {
-                return m_Image == null || m_Image.sprite == null ||
-                       (Sprite != null && m_Image.sprite != Sprite);
+                return _image == null || _image.sprite == null ||
+                       (_sprite != null && _image.sprite != _sprite);
             }
-            else if (setType == SetType.SpriteRender)
+            else if (_setType == SetType.SpriteRender)
             {
-                return m_SpriteRenderer == null || m_SpriteRenderer.sprite == null ||
-                       (Sprite != null && m_SpriteRenderer.sprite != Sprite);
+                return _spriteRenderer == null || _spriteRenderer.sprite == null ||
+                       (_sprite != null && _spriteRenderer.sprite != _sprite);
             }
             return true;
         }
 
         public void Clear()
         {
-            m_SpriteRenderer = null;
-            m_Image = null;
+            _spriteRenderer = null;
+            _image = null;
             Location = null;
-            Sprite = null;
-            setType = SetType.None;
-            m_SetNativeSize = false;
+            _sprite = null;
+            _setType = SetType.None;
+            _setNativeSize = false;
         }
 
-        public static SetSpriteObject Create(Image image, string location, bool setNativeSize = false)
+        public static SetSpriteObject Create(Image image, string location, bool setNativeSize = false, Action<Image> callback = null, CancellationToken cancellationToken = default)
         {
             SetSpriteObject item = ReferencePool.Acquire<SetSpriteObject>();
-            item.m_Image = image;
-            item.m_SetNativeSize = setNativeSize;
+            item._image = image;
+            item._setNativeSize = setNativeSize;
             item.Location = location;
-            item.setType = SetType.Image;
+            item._cancellationToken = cancellationToken;
+            item._setType = SetType.Image;
+            item._imageCallback = callback;
             return item;
         }
-        
-        public static SetSpriteObject Create(SpriteRenderer spriteRenderer, string location)
+
+        public static SetSpriteObject Create(SpriteRenderer spriteRenderer, string location, Action<SpriteRenderer> callback = null, CancellationToken cancellationToken = default)
         {
             SetSpriteObject item = ReferencePool.Acquire<SetSpriteObject>();
-            item.m_SpriteRenderer = spriteRenderer;
+            item._spriteRenderer = spriteRenderer;
             item.Location = location;
-            item.setType = SetType.SpriteRender;
+            item._cancellationToken = cancellationToken;
+            item._setType = SetType.SpriteRender;
+            item._spriteCallback = callback;
             return item;
         }
     }

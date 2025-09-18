@@ -20,9 +20,13 @@ namespace GameLogic
 
         private Canvas _canvas;
 
+        protected Canvas Canvas => _canvas;
+
         private Canvas[] _childCanvas;
 
         private GraphicRaycaster _raycaster;
+                
+        protected GraphicRaycaster GraphicRaycaster => _raycaster;
 
         private GraphicRaycaster[] _childRaycaster;
 
@@ -32,7 +36,7 @@ namespace GameLogic
         /// 窗口位置组件。
         /// </summary>
         public override Transform transform => _panel.transform;
-        
+
         /// <summary>
         /// 窗口矩阵位置组件。
         /// </summary>
@@ -67,36 +71,13 @@ namespace GameLogic
         /// 是内部资源无需AB加载。
         /// </summary>
         public bool FromResources { private set; get; }
-        
+
         /// <summary>
         /// 隐藏窗口关闭时间。
         /// </summary>
         public int HideTimeToClose { get; set; }
-        
+
         public int HideTimerId { get; set; }
-
-        /// <summary>
-        /// 自定义数据。
-        /// </summary>
-        public System.Object UserData
-        {
-            get
-            {
-                if (userDatas != null && userDatas.Length >= 1)
-                {
-                    return userDatas[0];
-                }
-                else
-                {
-                    return null;
-                }
-            }
-        }
-
-        /// <summary>
-        /// 自定义数据集。
-        /// </summary>
-        public System.Object[] UserDatas => userDatas;
 
         /// <summary>
         /// 窗口深度值。
@@ -227,6 +208,16 @@ namespace GameLogic
         /// </summary>
         internal bool IsLoadDone = false;
 
+        /// <summary>
+        /// UI是否销毁。
+        /// </summary>
+        internal bool IsDestroyed = false;
+
+        /// <summary>
+        /// UI是否隐藏标志位。
+        /// </summary>
+        public bool IsHide { internal set; get; } = false;
+
         #endregion
 
         public void Init(string name, int layer, bool fullScreen, string assetName, bool fromResources, int hideTimeToClose)
@@ -241,6 +232,7 @@ namespace GameLogic
 
         internal void TryInvoke(System.Action<UIWindow> prepareCallback, System.Object[] userDatas)
         {
+            CancelHideToCloseTimer();
             base.userDatas = userDatas;
             if (IsPrepare)
             {
@@ -250,7 +242,6 @@ namespace GameLogic
             {
                 _prepareCallback = prepareCallback;
             }
-            CancelHideToCloseTimer();
         }
 
         internal async UniTaskVoid InternalLoad(string location, Action<UIWindow> prepareCallback, bool isAsync, System.Object[] userDatas)
@@ -395,6 +386,9 @@ namespace GameLogic
                 Object.Destroy(_panel);
                 _panel = null;
             }
+
+            IsDestroyed = true;
+
             CancelHideToCloseTimer();
         }
 
@@ -410,7 +404,13 @@ namespace GameLogic
             }
 
             IsLoadDone = true;
-            
+
+            if (IsDestroyed)
+            {
+                Object.Destroy(panel);
+                return;
+            }
+
             panel.name = GetType().Name;
             _panel = panel;
             _panel.transform.localPosition = Vector3.zero;
@@ -436,6 +436,11 @@ namespace GameLogic
             _prepareCallback?.Invoke(this);
         }
 
+        protected virtual void Hide()
+        {
+            UISystem.Instance.HideUI(this.GetType());
+        }
+
         protected virtual void Close()
         {
             UISystem.Instance.CloseUI(this.GetType());
@@ -443,6 +448,7 @@ namespace GameLogic
 
         internal void CancelHideToCloseTimer()
         {
+            IsHide = false;
             if (HideTimerId > 0)
             {
                 GameModule.Timer.CancelTimer(HideTimerId);

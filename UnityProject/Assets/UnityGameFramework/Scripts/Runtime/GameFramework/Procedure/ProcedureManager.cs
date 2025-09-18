@@ -184,5 +184,29 @@ namespace GameFramework.Procedure
 
             return (ProcedureBase)m_ProcedureFsm.GetState(procedureType);
         }
+
+        /// <summary>
+        /// 重启流程。
+        /// <remarks>默认使用第一个流程作为启动流程。</remarks>
+        /// </summary>
+        /// <param name="procedures">新的的流程。</param>
+        /// <returns>是否重启成功。</returns>
+        /// <exception cref="GameFrameworkException">重启异常。</exception>
+        public bool RestartProcedure(params ProcedureBase[] procedures)
+        {
+            if (procedures == null || procedures.Length <= 0)
+            {
+                throw new GameFrameworkException("RestartProcedure Failed procedures is invalid.");
+            }
+
+            if (!m_FsmManager.DestroyFsm<IProcedureManager>())
+            {
+                return false;
+            }
+
+            Initialize(m_FsmManager, procedures);
+            StartProcedure(procedures[0].GetType());
+            return true;
+        }
     }
 }

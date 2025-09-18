@@ -43,21 +43,21 @@ public static class EventInterfaceGenerate
         }
     }
 
-    [MenuItem("Game Framework/EventInterface/OpenAutoGenerate", false, 300)]
+    [MenuItem("GameFramework/EventInterface/OpenAutoGenerate", false, 300)]
     public static void OpenAutoGenerate()
     {
         EditorPrefs.SetBool("EventInterfaceGenerate.BOpenAutoGenerate", true);
         Debug.Log("OpenAutoGenerate");
     }
 
-    [MenuItem("Game Framework/EventInterface/CloseAutoGenerate", false, 301)]
+    [MenuItem("GameFramework/EventInterface/CloseAutoGenerate", false, 301)]
     public static void CloseAutoGenerate()
     {
         EditorPrefs.SetBool("EventInterfaceGenerate.BOpenAutoGenerate", false);
         Debug.Log("CloseAutoGenerate");
     }
     
-    [MenuItem("Game Framework/EventInterface/Generate EventInterface", false, 302)]
+    [MenuItem("GameFramework/EventInterface/Generate EventInterface", false, 302)]
     public static void Generate()
     {
         if (EventInterfaceGenerateTag.HadGenerate)

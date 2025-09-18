@@ -14,7 +14,7 @@ namespace UnityGameFramework.Runtime
         {
             public object InterfaceWrap;
         };
-        
+
         /// <summary>
         /// 总事件实体数据。
         /// </summary>
@@ -50,13 +50,13 @@ namespace UnityGameFramework.Runtime
                 m_EventEntryMap.Add(typeName, entry);
             }
         }
-        
+
         /// <summary>
         /// 注册wrap的函数。
         /// </summary>
         /// <param name="typeName">类型名称。</param>
         /// <param name="callerWrap">调用接口名。</param>
-        public void RegWrapInterface(string typeName,object callerWrap)
+        public void RegWrapInterface(string typeName, object callerWrap)
         {
             var entry = new EventEntryData();
             entry.InterfaceWrap = callerWrap;
@@ -65,11 +65,20 @@ namespace UnityGameFramework.Runtime
                 m_EventEntryMap.Add(typeName, entry);
             }
         }
-        
+
 
         /// <summary>
         /// 分发注册器。
         /// </summary>
         public EventDispatcher Dispatcher { get; } = new EventDispatcher();
+
+        /// <summary>
+        /// 清除事件。
+        /// </summary>
+        public void Init()
+        {
+            m_EventEntryMap.Clear();
+            Dispatcher.ClearEventTable();
+        }
     }
 }

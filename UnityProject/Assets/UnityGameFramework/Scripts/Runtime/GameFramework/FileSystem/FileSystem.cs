@@ -831,7 +831,7 @@ namespace GameFramework.FileSystem
                 hasFile = true;
             }
 
-            if (!hasFile && m_FileDatas.Count >= m_HeaderData.MaxFileCount)
+            if (!hasFile && m_FileDatas.Count > m_HeaderData.MaxFileCount)
             {
                 return false;
             }
@@ -893,7 +893,7 @@ namespace GameFramework.FileSystem
                 hasFile = true;
             }
 
-            if (!hasFile && m_FileDatas.Count >= m_HeaderData.MaxFileCount)
+            if (!hasFile && m_FileDatas.Count > m_HeaderData.MaxFileCount)
             {
                 return false;
             }

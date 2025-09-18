@@ -33,9 +33,22 @@ public static class SettingsUtils
         get { return GlobalSettings.HybridClrCustomGlobalSettings; }
     }
 
-    public static ResourcesArea ResourcesArea
+    /// <summary>
+    /// 是否强制更新
+    /// </summary>
+    /// <returns></returns>
+    public static UpdateStyle UpdateStyle
     {
-        get { return GlobalSettings.FrameworkGlobalSettings.ResourcesArea; }
+        get { return GlobalSettings.FrameworkGlobalSettings.UpdateStyle; }
+    }
+
+    /// <summary>
+    /// 是否提示更新
+    /// </summary>
+    /// <returns></returns>
+    public static UpdateNotice UpdateNotice
+    {
+        get { return GlobalSettings.FrameworkGlobalSettings.UpdateNotice; }
     }
 
     public static void SetHybridCLRHotUpdateAssemblies(List<string> hotUpdateAssemblies)
@@ -50,47 +63,47 @@ public static class SettingsUtils
         HybridCLRCustomGlobalSettings.AOTMetaAssemblies.AddRange(aOTMetaAssemblies);
     }
 
-
-    public static string GetAppUpdateUrl()
+    /// <summary>
+    /// 是否加载远程资源
+    /// </summary>
+    /// <returns></returns>
+    public static LoadResWayWebGL GetLoadResWayWebGL()
     {
-        string url = null;
-#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-        url = FrameworkGlobalSettings.WindowsAppUrl;
-#elif UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
-            url = FrameworkGlobalSettings.MacOSAppUrl;
-#elif UNITY_IOS
-            url = FrameworkGlobalSettings.IOSAppUrl;
-#elif UNITY_ANDROID
-            url = FrameworkGlobalSettings.AndroidAppUrl;
-#endif
-        return url;
+        return FrameworkGlobalSettings.LoadResWayWebGL;
     }
 
-    public static string GetResDownLoadPath(string fileName = "")
+    /// <summary>
+    /// 是否加载远程资源
+    /// </summary>
+    /// <returns></returns>
+    public static bool IsAutoAssetCopeToBuildAddress()
     {
-        return Path.Combine(CompleteDownLoadPath, $"{ResourcesArea.ResAdminType}_{ResourcesArea.ResAdminCode}", GetPlatformName(), fileName).Replace("\\", "/");
+        return FrameworkGlobalSettings.IsAutoAssetCopeToBuildAddress;
     }
 
-    public static string CompleteDownLoadPath
+    /// <summary>
+    /// 是否加载远程资源
+    /// </summary>
+    /// <returns></returns>
+    public static string GetBuildAddress()
     {
-        get
-        {
-            string url = "";
-            if (ResourcesArea.ServerType == ServerTypeEnum.Extranet)
-            {
-                url = ResourcesArea.ExtraResourceSourceUrl;
-            }
-            else if (ResourcesArea.ServerType == ServerTypeEnum.Formal)
-            {
-                url = ResourcesArea.FormalResourceSourceUrl;
-            }
-            else
-            {
-                url = ResourcesArea.InnerResourceSourceUrl;
-            }
+        return FrameworkGlobalSettings.BuildAddress;
+    }
 
-            return url;
-        }
+    /// <summary>
+    /// 获取资源下载路径。
+    /// </summary>
+    public static string GetMainResDownLoadPath()
+    {
+        return Path.Combine(FrameworkGlobalSettings.MainResDownLoadPath, FrameworkGlobalSettings.ProjectName, GetPlatformName()).Replace("\\", "/");
+    }
+
+    /// <summary>
+    /// 获取备用资源下载路径。
+    /// </summary>
+    public static string GetFallbackResDownLoadPath()
+    {
+        return Path.Combine(FrameworkGlobalSettings.FallbackResDownLoadPath, FrameworkGlobalSettings.ProjectName, GetPlatformName()).Replace("\\", "/");
     }
 
     private static ServerIpAndPort FindServerIpAndPort(string channelName = "")
@@ -191,44 +204,29 @@ public static class SettingsUtils
 
             case RuntimePlatform.Android:
                 return "Android";
-            
+
             case RuntimePlatform.WebGLPlayer:
                 return "WebGL";
-            
+
             default:
                 return Application.platform.ToString();
         }
 #endif
     }
-    
+
     public static string GetDictionaryAsset(string assetName, bool fromBytes)
     {
         return Utility.Text.Format("Assets/GameMain/Localization/{0}/Dictionaries/{1}.{2}",
             GameSystem.GetComponent<LocalizationComponent>().Language.ToString(), assetName, fromBytes ? "bytes" : "xml");
     }
 
-    public static string GetAtlasFolder()
-    {
-        return FrameworkGlobalSettings.AtlasFolder;
-    }
-    
-    public static List<ScriptGenerateRuler> GetScriptGenerateRule()
-    {
-        return FrameworkGlobalSettings.ScriptGenerateRule;
-    }
-
-    public static string GetUINameSpace()
-    {
-        return FrameworkGlobalSettings.NameSpace;
-    }
-    
-    public static string GetUIWidgetName()
-    {
-        return FrameworkGlobalSettings.UIWidgetName;
-    }
-    
     public static string[] GetPreLoadTags()
     {
         return FrameworkGlobalSettings.PreLoadTags;
+    }
+
+    public static string[] GetWebGLPreLoadTags()
+    {
+        return FrameworkGlobalSettings.WebGLPreLoadTags;
     }
 }

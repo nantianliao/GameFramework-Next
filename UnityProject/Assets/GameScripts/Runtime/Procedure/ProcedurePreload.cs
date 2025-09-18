@@ -22,7 +22,7 @@ namespace GameMain
 
         public override bool UseNativeDialog => true;
 
-        private readonly bool _needProLoad = true;
+        private readonly bool _needProLoadConfig = true;
 
         /// <summary>
         /// 预加载回调。
@@ -97,8 +97,7 @@ namespace GameMain
             ChangeState<ProcedureLoadAssembly>(procedureOwner);
         }
 
-
-        public IEnumerator SmoothValue(float value, float duration, Action callback = null)
+        private async UniTaskVoid SmoothValue(float value, float duration, Action callback = null)
         {
             float time = 0f;
             while (time < duration)
@@ -106,7 +105,7 @@ namespace GameMain
                 time += Time.deltaTime;
                 var result = Mathf.Lerp(0, value, time / duration);
                 _progress = result;
-                yield return new WaitForEndOfFrame();
+                await UniTask.Yield();
             }
 
             _progress = value;
@@ -115,32 +114,45 @@ namespace GameMain
 
         private void PreloadResources()
         {
-            // await SmoothValue(1f, 1.2f).ToUniTask(GameModule.Procedure);
-            if (_needProLoad)
+            if (_needProLoadConfig)
             {
-                PreLoad();
+                LoadAllConfig();
             }
         }
 
-        private void PreLoad()
+        private void LoadAllConfig()
         {
-            if (GameModule.Resource.PlayMode == EPlayMode.EditorSimulateMode)
+            if (_resourceManager.PlayMode == EPlayMode.EditorSimulateMode)
             {
                 return;
             }
 
             string[] preLoadTags = SettingsUtils.GetPreLoadTags();
-            AssetInfo[] assetInfos = GameModule.Resource.GetAssetInfos(preLoadTags);
+            AssetInfo[] assetInfos = _resourceManager.GetAssetInfos(preLoadTags);
             foreach (var assetInfo in assetInfos)
             {
                 PreLoad(assetInfo.Address);
+            }
+
+#if UNITY_WEBGL
+            string[] webgl_preLoadTags = SettingsUtils.GetWebGLPreLoadTags();
+            AssetInfo[] webAssetInfos = _resourceManager.GetAssetInfos(webgl_preLoadTags);
+            foreach (var assetInfo in webAssetInfos)
+            {
+                PreLoad(assetInfo.Address);
+            }
+#endif
+            if (_loadedFlag.Count <= 0)
+            {
+                // SmoothValue(1, 1f, ChangeProcedureToLoadAssembly).Forget();
+                return;
             }
         }
 
         private void PreLoad(string configName)
         {
             _loadedFlag.Add(configName, false);
-            GameModule.Resource.LoadAssetAsync(configName, typeof(UnityEngine.Object), m_PreLoadAssetCallbacks, null);
+            _resourceManager.LoadAssetAsync(configName, 100, m_PreLoadAssetCallbacks, null);
         }
 
         private void OnPreLoadAssetFailure(string assetName, LoadResourceStatus status, string errormessage, object userdata)

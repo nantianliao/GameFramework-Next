@@ -28,6 +28,29 @@ namespace GameLogic
         protected System.Object[] userDatas;
 
         /// <summary>
+        /// 自定义数据。
+        /// </summary>
+        public System.Object UserData
+        {
+            get
+            {
+                if (userDatas != null && userDatas.Length >= 1)
+                {
+                    return userDatas[0];
+                }
+                else
+                {
+                    return null;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 自定义数据集。
+        /// </summary>
+        public System.Object[] UserDatas => userDatas;
+
+        /// <summary>
         /// 窗口的实例资源对象。
         /// </summary>
         public virtual GameObject gameObject { protected set; get; }

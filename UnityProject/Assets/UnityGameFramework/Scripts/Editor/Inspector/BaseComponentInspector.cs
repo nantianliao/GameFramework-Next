@@ -90,7 +90,7 @@ namespace UnityGameFramework.Editor
             }
             EditorGUI.EndDisabledGroup();
 
-            int frameRate = EditorGUILayout.IntSlider("Frame Rate", m_FrameRate.intValue, 1, 120);
+            int frameRate = EditorGUILayout.IntSlider("Frame Rate", m_FrameRate.intValue, -1, 120);
             if (frameRate != m_FrameRate.intValue)
             {
                 if (EditorApplication.isPlaying)

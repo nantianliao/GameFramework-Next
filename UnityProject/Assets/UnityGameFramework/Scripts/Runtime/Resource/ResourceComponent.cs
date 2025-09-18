@@ -36,7 +36,7 @@ namespace UnityGameFramework.Runtime
         [SerializeField] private float m_MaxUnloadUnusedAssetsInterval = 300f;
 
         [SerializeField] private bool m_UseSystemUnloadUnusedAssets = true;
-        
+
         /// <summary>
         /// 当前最新的包裹版本。
         /// </summary>
@@ -45,12 +45,23 @@ namespace UnityGameFramework.Runtime
         /// <summary>
         /// 资源包名称。
         /// </summary>
-        public string PackageName = "DefaultPackage";
+        [SerializeField]
+        private string m_packageName = "DefaultPackage";
+
+        /// <summary>
+        /// 资源包名称。
+        /// </summary>
+        public string PackageName
+        {
+            get => m_packageName;
+            set => m_packageName = value;
+        }
 
         /// <summary>
         /// 资源系统运行模式。
         /// </summary>
-        [SerializeField] private EPlayMode playMode = EPlayMode.EditorSimulateMode;
+        [SerializeField]
+        private EPlayMode playMode = EPlayMode.EditorSimulateMode;
 
         /// <summary>
         /// 资源系统运行模式。
@@ -79,28 +90,40 @@ namespace UnityGameFramework.Runtime
 #endif
             }
         }
-        
+
+        [SerializeField]
+        private EncryptionType encryptionType = EncryptionType.None;
+
+        /// <summary>
+        /// 资源模块的加密类型。
+        /// </summary>
+        public EncryptionType EncryptionType => encryptionType;
+
+        [SerializeField]
+        private LoadResWayWebGL loadResWayWebGL = LoadResWayWebGL.StreamingAssets;
+
+        /// <summary>
+        /// 资源模块的加密类型。
+        /// </summary>
+        public LoadResWayWebGL LoadResWayWebGL => loadResWayWebGL;
+
         /// <summary>
         /// 是否支持边玩边下载。
         /// </summary>
-        [SerializeField] private bool m_UpdatableWhilePlaying = false;
+        [SerializeField]
+        private bool m_UpdatableWhilePlaying = false;
 
         /// <summary>
         /// 是否支持边玩边下载。
         /// </summary>
         public bool UpdatableWhilePlaying => m_UpdatableWhilePlaying;
-            
-        /// <summary>
-        /// 下载文件校验等级。
-        /// </summary>
-        public EVerifyLevel VerifyLevel = EVerifyLevel.Middle;
 
         [SerializeField] private ReadWritePathType m_ReadWritePathType = ReadWritePathType.Unspecified;
 
         /// <summary>
         /// 设置异步系统参数，每帧执行消耗的最大时间切片（单位：毫秒）
         /// </summary>
-        [SerializeField] public long Milliseconds = 30;
+        public long Milliseconds = 30;
 
         public int m_DownloadingMaxNum = 10;
 
@@ -153,7 +176,7 @@ namespace UnityGameFramework.Runtime
             get => m_MaxUnloadUnusedAssetsInterval;
             set => m_MaxUnloadUnusedAssetsInterval = value;
         }
-        
+
         /// <summary>
         /// 使用系统释放无用资源策略。
         /// </summary>
@@ -189,7 +212,7 @@ namespace UnityGameFramework.Runtime
 
         [SerializeField]
         private int m_AssetPriority = 0;
-        
+
         /// <summary>
         /// 获取或设置资源对象池自动释放可释放对象的间隔秒数。
         /// </summary>
@@ -292,15 +315,21 @@ namespace UnityGameFramework.Runtime
 
             m_ResourceManager.DefaultPackageName = PackageName;
             m_ResourceManager.PlayMode = PlayMode;
-            m_ResourceManager.VerifyLevel = VerifyLevel;
+            m_ResourceManager.EncryptionType = encryptionType;
             m_ResourceManager.Milliseconds = Milliseconds;
             m_ResourceManager.InstanceRoot = transform;
-            m_ResourceManager.HostServerURL = SettingsUtils.GetResDownLoadPath();
+            m_ResourceManager.HostServerURL = SettingsUtils.GetMainResDownLoadPath();
+            m_ResourceManager.FallbackHostServerURL = SettingsUtils.GetFallbackResDownLoadPath();
+            m_ResourceManager.LoadResWayWebGL = SettingsUtils.GetLoadResWayWebGL();
+            m_ResourceManager.DownloadingMaxNum = DownloadingMaxNum;
+            m_ResourceManager.FailedTryAgain = FailedTryAgain;
+            m_ResourceManager.UpdatableWhilePlaying = UpdatableWhilePlaying;
             m_ResourceManager.Initialize();
             m_ResourceManager.AssetAutoReleaseInterval = m_AssetAutoReleaseInterval;
             m_ResourceManager.AssetCapacity = m_AssetCapacity;
             m_ResourceManager.AssetExpireTime = m_AssetExpireTime;
             m_ResourceManager.AssetPriority = m_AssetPriority;
+            m_ResourceManager.SetForceUnloadUnusedAssetsAction(ForceUnloadUnusedAssets);
             Log.Info($"ResourceComponent Run Mode：{PlayMode}");
         }
 
@@ -316,7 +345,7 @@ namespace UnityGameFramework.Runtime
                 return null;
             }
 
-            return await m_ResourceManager.InitPackage(string.IsNullOrEmpty(packageName) ? PackageName:packageName);
+            return await m_ResourceManager.InitPackage(string.IsNullOrEmpty(packageName) ? PackageName : packageName);
         }
 
         #region 版本更新
@@ -345,13 +374,13 @@ namespace UnityGameFramework.Runtime
         /// <param name="timeout">超时时间。</param>
         /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
         /// <returns>请求远端包裹的最新版本操作句柄。</returns>
-        public UpdatePackageVersionOperation UpdatePackageVersionAsync(bool appendTimeTicks = false, int timeout = 60,
+        public RequestPackageVersionOperation UpdatePackageVersionAsync(bool appendTimeTicks = false, int timeout = 60,
             string customPackageName = "")
         {
             var package = string.IsNullOrEmpty(customPackageName)
                 ? YooAssets.GetPackage(PackageName)
                 : YooAssets.GetPackage(customPackageName);
-            return package.UpdatePackageVersionAsync(appendTimeTicks, timeout);
+            return package.RequestPackageVersionAsync(appendTimeTicks, timeout);
         }
 
         /// <summary>
@@ -361,20 +390,19 @@ namespace UnityGameFramework.Runtime
         /// <param name="autoSaveVersion">更新成功后自动保存版本号，作为下次初始化的版本。</param>
         /// <param name="timeout">超时时间（默认值：60秒）</param>
         /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
-        public UpdatePackageManifestOperation UpdatePackageManifestAsync(string packageVersion,
-            bool autoSaveVersion = true, int timeout = 60, string customPackageName = "")
+        public UpdatePackageManifestOperation UpdatePackageManifestAsync(string packageVersion, int timeout = 60, string customPackageName = "")
         {
             var package = string.IsNullOrEmpty(customPackageName)
                 ? YooAssets.GetPackage(PackageName)
                 : YooAssets.GetPackage(customPackageName);
-            return package.UpdatePackageManifestAsync(packageVersion, autoSaveVersion, timeout);
+            return package.UpdatePackageManifestAsync(packageVersion, timeout);
         }
-        
+
         /// <summary>
         /// 资源下载器，用于下载当前资源版本所有的资源包文件。
         /// </summary>
         public ResourceDownloaderOperation Downloader { get; set; }
-        
+
         /// <summary>
         /// 创建资源下载器，用于下载当前资源版本所有的资源包文件。
         /// </summary>
@@ -394,29 +422,17 @@ namespace UnityGameFramework.Runtime
                 return Downloader;
             }
         }
-        
+
         /// <summary>
         /// 清理包裹未使用的缓存文件。
         /// </summary>
         /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
-        public ClearUnusedCacheFilesOperation ClearUnusedCacheFilesAsync(string customPackageName = "")
+        public ClearCacheFilesOperation ClearCacheFilesAsync(string customPackageName = "", EFileClearMode clearMode = EFileClearMode.ClearUnusedBundleFiles)
         {
             var package = string.IsNullOrEmpty(customPackageName)
                 ? YooAssets.GetPackage(PackageName)
                 : YooAssets.GetPackage(customPackageName);
-            return package.ClearUnusedCacheFilesAsync();
-        }
-
-        /// <summary>
-        /// 清理沙盒路径。
-        /// </summary>
-        /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
-        public void ClearSandbox(string customPackageName = "")
-        {
-            var package = string.IsNullOrEmpty(customPackageName)
-                ? YooAssets.GetPackage(PackageName)
-                : YooAssets.GetPackage(customPackageName);
-            package.ClearPackageSandbox();
+            return package.ClearCacheFilesAsync(clearMode);
         }
         #endregion
 
@@ -431,7 +447,7 @@ namespace UnityGameFramework.Runtime
         {
             return m_ResourceManager.HasAsset(location, packageName: customPackageName);
         }
-        
+
         /// <summary>
         /// 检查资源定位地址是否有效。
         /// </summary>
@@ -441,7 +457,7 @@ namespace UnityGameFramework.Runtime
         {
             return m_ResourceManager.CheckLocationValid(location, packageName: customPackageName);
         }
-        
+
         /// <summary>
         /// 获取资源信息列表。
         /// </summary>
@@ -546,7 +562,7 @@ namespace UnityGameFramework.Runtime
 
             return m_ResourceManager.LoadGameObject(location, parent, packageName);
         }
-        
+
         /// <summary>
         /// 异步加载资源。
         /// </summary>
@@ -561,7 +577,7 @@ namespace UnityGameFramework.Runtime
                 Log.Error("Asset name is invalid.");
                 return;
             }
-            
+
             m_ResourceManager.LoadAsset<T>(location, callback, packageName: customPackageName);
         }
 
@@ -669,7 +685,7 @@ namespace UnityGameFramework.Runtime
                 }
             }
 
-            if (m_AsyncOperation is { isDone: true })
+            if (m_AsyncOperation != null && m_AsyncOperation.isDone)
             {
                 m_AsyncOperation = null;
                 if (m_PerformGCCollect)

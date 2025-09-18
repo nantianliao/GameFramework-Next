@@ -86,24 +86,36 @@ public class GameModule : MonoBehaviour
     public static SoundComponent Sound { get; private set; }
 
     /// <summary>
+    /// 获取界面组件。
+    /// </summary>
+    public static UIComponent UI { get; private set; }
+
+    /// <summary>
     /// 获取网络组件。
     /// </summary>
     public static WebRequestComponent WebRequest { get; private set; }
-    
+
     /// <summary>
     /// 获取时间组件。
     /// </summary>
     public static TimerComponent Timer { get; private set; }
-    
+
     /// <summary>
     /// 获取设置Texture组件。
     /// </summary>
-    public static TextureSetComponent TextureSet{ get; private set; }
-    
+    public static TextureSetComponent TextureSet { get; private set; }
+
     /// <summary>
     /// 资源组件拓展。
     /// </summary>
     public static ResourceExtComponent ResourceExt { get; private set; }
+    #endregion
+
+    #region CustomComponents
+    /// <summary>
+    /// 获取数据组件。
+    /// </summary>
+    public static DataComponent Data { get; private set; }
     #endregion
 
     /// <summary>
@@ -126,33 +138,37 @@ public class GameModule : MonoBehaviour
         Scene = Get<SceneComponent>();
         Setting = Get<SettingComponent>();
         Sound = Get<SoundComponent>();
+        UI = Get<UIComponent>();
         WebRequest = Get<WebRequestComponent>();
         Timer = Get<TimerComponent>();
         TextureSet = Get<TextureSetComponent>();
         ResourceExt = Get<ResourceExtComponent>();
     }
 
+    /// <summary>
+    /// 注意：务必要在场景中添加自定义组件
+    /// </summary>
     public static void InitCustomComponents()
     {
-        
+        Data = Get<DataComponent>();
     }
-  
+
     private static readonly Dictionary<Type, GameFrameworkComponent> s_Components = new Dictionary<Type, GameFrameworkComponent>();
 
     public static T Get<T>() where T : GameFrameworkComponent
     {
         Type type = typeof(T);
-        
+
         if (s_Components.TryGetValue(type, out GameFrameworkComponent component))
         {
             return (T)component;
         }
-        
+
         component = UnityGameFramework.Runtime.GameSystem.GetComponent<T>();
-        
-        Log.Assert(condition:component != null,$"{typeof(T)} is null");
-        
-        s_Components.Add(type,component);
+
+        Log.Assert(condition: component != null, $"{typeof(T)} is null");
+
+        s_Components.Add(type, component);
 
         return (T)component;
     }
@@ -164,10 +180,12 @@ public class GameModule : MonoBehaviour
 
     private void Init()
     {
+        // 框架自带组件
         InitFrameWorkComponents();
-        InitCustomComponents();
+        // 自定义组件
+        // InitCustomComponents();
     }
-    
+
     public static void QuitApplication()
     {
 #if UNITY_EDITOR

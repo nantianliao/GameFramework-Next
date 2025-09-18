@@ -18,16 +18,22 @@ namespace GameMain
         {
             _btn_clear.onClick.AddListener(OnClear);
             _btn_clear.gameObject.SetActive(true);
+            DownLoad_Progress_Action(0f);
         }
 
         public virtual void OnEnable()
         {
             RefreshVersion();
-            GameEvent.AddEventListener<float>(StringId.StringToHash("DownProgress"),DownLoad_Progress_Action);
+            GameEvent.AddEventListener<float>(StringId.StringToHash("DownProgress"), DownLoad_Progress_Action);
         }
 
         public override void OnEnter(object param)
         {
+            if (param == null)
+            {
+                return;
+            }
+
             base.OnEnter(param);
             _label_desc.text = param.ToString();
             RefreshVersion();
@@ -63,7 +69,7 @@ namespace GameMain
                 LoadStyle.StyleEnum.Style_Clear,
                 () =>
                 {
-                    GameModule.Resource.ClearUnusedCacheFilesAsync();
+                    // GameModule.Resource.ClearUnusedCacheFilesAsync();
                     Application.Quit();
                 }, () => { OnContinue(null); });
         }
@@ -128,7 +134,7 @@ namespace GameMain
 
         public virtual void OnDisable()
         {
-            GameEvent.RemoveEventListener<float>(StringId.StringToHash("DownProgress"),DownLoad_Progress_Action);
+            GameEvent.RemoveEventListener<float>(StringId.StringToHash("DownProgress"), DownLoad_Progress_Action);
             OnStop(null);
         }
     }

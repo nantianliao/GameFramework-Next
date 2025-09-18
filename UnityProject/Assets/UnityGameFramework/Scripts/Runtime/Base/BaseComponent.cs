@@ -1,5 +1,6 @@
 ﻿using GameFramework;
 using GameFramework.Localization;
+using GameFramework.ObjectPool;
 using GameFramework.Resource;
 using System;
 using UnityEngine;
@@ -168,7 +169,7 @@ namespace UnityGameFramework.Runtime
             {
                 Utility.Converter.ScreenDpi = DefaultDpi;
             }
-            
+
             Application.targetFrameRate = m_FrameRate;
             Time.timeScale = m_GameSpeed;
             Application.runInBackground = m_RunInBackground;
@@ -369,16 +370,16 @@ namespace UnityGameFramework.Runtime
         {
             Log.Info("Low memory reported...");
 
-            ObjectPoolComponent objectPoolComponent = GameSystem.GetComponent<ObjectPoolComponent>();
-            if (objectPoolComponent != null)
+            IObjectPoolManager objectPoolManager = GameFrameworkSystem.GetModule<IObjectPoolManager>();
+            if (objectPoolManager != null)
             {
-                objectPoolComponent.ReleaseAllUnused();
+                objectPoolManager.ReleaseAllUnused();
             }
 
-            ResourceComponent resourceComponent = GameSystem.GetComponent<ResourceComponent>();
-            if (resourceComponent != null)
+            IResourceManager resourceManager = GameFrameworkSystem.GetModule<IResourceManager>();
+            if (resourceManager != null)
             {
-                resourceComponent.ForceUnloadUnusedAssets(true);
+                resourceManager.OnLowMemory();
             }
         }
     }

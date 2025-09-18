@@ -459,7 +459,7 @@ namespace GameFramework.Editor
 
         private static readonly Dictionary<string, List<string>> m_tempAllASprites = new Dictionary<string, List<string>>();
 
-        [MenuItem("Game Framework/Atlas/重新生成UI图集", false, 90)]
+        [MenuItem("GameFramework/Atlas/重新生成UI图集", false, 90)]
         static void ForceGenAtlas()
         {
             Init();

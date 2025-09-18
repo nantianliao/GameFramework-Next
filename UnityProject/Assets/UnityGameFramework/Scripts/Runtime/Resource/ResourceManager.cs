@@ -18,23 +18,16 @@ namespace GameFramework.Resource
         #region Propreties
 
         /// <summary>
-        /// 资源包名称。
+        /// 默认资源包名称。
         /// </summary>
-        public string DefaultPackageName
-        {
-            get => _defaultPackageName;
-            set => _defaultPackageName = value;
-        }
+        public string DefaultPackageName { get; set; } = "DefaultPackage";
 
         /// <summary>
         /// 资源系统运行模式。
         /// </summary>
-        public EPlayMode PlayMode { get; set; }
+        public EPlayMode PlayMode { get; set; } = EPlayMode.OfflinePlayMode;
 
-        /// <summary>
-        /// 下载文件校验等级。
-        /// </summary>
-        public EVerifyLevel VerifyLevel { get; set; }
+        public EncryptionType EncryptionType { get; set; } = EncryptionType.None;
 
         /// <summary>
         /// 设置异步系统参数，每帧执行消耗的最大时间切片（单位：毫秒）
@@ -64,13 +57,17 @@ namespace GameFramework.Resource
 
         public string FallbackHostServerURL { get; set; }
 
+        /// <summary>
+        /// WebGL：加载资源方式
+        /// </summary>
+        public LoadResWayWebGL LoadResWayWebGL { get; set; }
+
         private string m_ApplicableGameVersion;
 
         private int m_InternalResourceVersion;
 
         private string m_ReadOnlyPath;
         private string m_ReadWritePath;
-        private string _defaultPackageName = "DefaultPackage";
 
         /// <summary>
         /// 获取资源只读区路径。
@@ -92,9 +89,13 @@ namespace GameFramework.Resource
         /// </summary>
         public int InternalResourceVersion => m_InternalResourceVersion;
 
+        public string PackageVersion { set; get; }
         public int DownloadingMaxNum { get; set; }
         public int FailedTryAgain { get; set; }
-        
+        /// <summary>
+        /// 是否支持边玩边下载。
+        /// </summary>
+        public bool UpdatableWhilePlaying { get; set; }
 
         /// <summary>
         /// 默认资源包。
@@ -105,6 +106,10 @@ namespace GameFramework.Resource
         /// 资源包列表。
         /// </summary>
         private Dictionary<string, ResourcePackage> PackageMap { get; } = new Dictionary<string, ResourcePackage>();
+        /// <summary>
+        /// 资源下载器，用于下载当前资源版本所有的资源包文件。
+        /// </summary>
+        public ResourceDownloaderOperation Downloader { get; set; }
 
         /// <summary>
         /// 资源信息列表。
@@ -140,8 +145,8 @@ namespace GameFramework.Resource
             {
                 defaultPackage = YooAssets.CreatePackage(packageName);
                 YooAssets.SetDefaultPackage(defaultPackage);
-                DefaultPackage = defaultPackage;
             }
+            DefaultPackage = defaultPackage;
 
             CancellationToken = InstanceRoot.gameObject.GetCancellationTokenOnDestroy();
 
@@ -181,7 +186,7 @@ namespace GameFramework.Resource
 
         #endregion
 
-        public async UniTask<InitializationOperation> InitPackage(string packageName)
+        public async UniTask<InitializationOperation> InitPackage(string packageName, bool needInitMainFest = false)
         {
 #if UNITY_EDITOR
             //编辑器模式使用。
@@ -192,10 +197,17 @@ namespace GameFramework.Resource
             EPlayMode playMode = (EPlayMode)PlayMode;
 #endif
 
-            if (PackageMap.ContainsKey(packageName))
+            if (PackageMap.TryGetValue(packageName, out var resourcePackage))
             {
-                Log.Error($"ResourceSystem has already init package : {packageName}");
-                return null;
+                if (resourcePackage.InitializeStatus == EOperationStatus.Processing || resourcePackage.InitializeStatus == EOperationStatus.Succeed)
+                {
+                    Log.Error($"ResourceSystem has already init package : {packageName}");
+                    return null;
+                }
+                else
+                {
+                    PackageMap.Remove(packageName);
+                }
             }
 
             // 创建资源包裹类
@@ -204,24 +216,27 @@ namespace GameFramework.Resource
             {
                 package = YooAssets.CreatePackage(packageName);
             }
+
             PackageMap[packageName] = package;
 
             // 编辑器下的模拟模式
             InitializationOperation initializationOperation = null;
             if (playMode == EPlayMode.EditorSimulateMode)
             {
+                var buildResult = EditorSimulateModeHelper.SimulateBuild(packageName);
+                var packageRoot = buildResult.PackageRootDirectory;
                 var createParameters = new EditorSimulateModeParameters();
-                createParameters.CacheBootVerifyLevel = VerifyLevel;
-                createParameters.SimulateManifestFilePath = EditorSimulateModeHelper.SimulateBuild(EDefaultBuildPipeline.BuiltinBuildPipeline, packageName);
+                createParameters.EditorFileSystemParameters = FileSystemParameters.CreateDefaultEditorFileSystemParameters(packageRoot);
                 initializationOperation = package.InitializeAsync(createParameters);
             }
+
+            IDecryptionServices decryptionServices = CreateDecryptionServices();
 
             // 单机运行模式
             if (playMode == EPlayMode.OfflinePlayMode)
             {
                 var createParameters = new OfflinePlayModeParameters();
-                createParameters.CacheBootVerifyLevel = VerifyLevel;
-                createParameters.DecryptionServices = new FileStreamDecryption();
+                createParameters.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters(decryptionServices);
                 initializationOperation = package.InitializeAsync(createParameters);
             }
 
@@ -230,32 +245,169 @@ namespace GameFramework.Resource
             {
                 string defaultHostServer = HostServerURL;
                 string fallbackHostServer = FallbackHostServerURL;
+                IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
                 var createParameters = new HostPlayModeParameters();
-                createParameters.CacheBootVerifyLevel = VerifyLevel;
-                createParameters.DecryptionServices = new FileStreamDecryption();
-                createParameters.BuildinQueryServices = new GameQueryServices();
-                createParameters.RemoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
+                createParameters.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters(decryptionServices);
+                createParameters.CacheFileSystemParameters = FileSystemParameters.CreateDefaultCacheFileSystemParameters(remoteServices, decryptionServices);
                 initializationOperation = package.InitializeAsync(createParameters);
             }
 
             // WebGL运行模式
             if (playMode == EPlayMode.WebPlayMode)
             {
+                var createParameters = new WebPlayModeParameters();
+                IWebDecryptionServices webDecryptionServices = CreateWebDecryptionServices();
                 string defaultHostServer = HostServerURL;
                 string fallbackHostServer = FallbackHostServerURL;
-                var createParameters = new WebPlayModeParameters();
-                createParameters.CacheBootVerifyLevel = VerifyLevel;
-                createParameters.DecryptionServices = new FileStreamDecryption();
-                createParameters.BuildinQueryServices = new GameQueryServices();
-                createParameters.RemoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
+                IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
+#if UNITY_WEBGL && WEIXINMINIGAME && !UNITY_EDITOR
+                Log.Info("=======================WEIXINMINIGAME=======================");
+                // 注意：如果有子目录，请修改此处！
+                string packageRoot = $"{WeChatWASM.WX.env.USER_DATA_PATH}/__GAME_FILE_CACHE";
+                createParameters.WebServerFileSystemParameters = WechatFileSystemCreater.CreateFileSystemParameters(packageRoot, remoteServices, webDecryptionServices);
+#else
+                Log.Info("=======================UNITY_WEBGL=======================");
+                if (LoadResWayWebGL == LoadResWayWebGL.Remote)
+                {
+                    createParameters.WebRemoteFileSystemParameters = FileSystemParameters.CreateDefaultWebRemoteFileSystemParameters(remoteServices, webDecryptionServices);
+                }
+                createParameters.WebServerFileSystemParameters = FileSystemParameters.CreateDefaultWebServerFileSystemParameters(webDecryptionServices);
+#endif
                 initializationOperation = package.InitializeAsync(createParameters);
             }
 
             await initializationOperation.ToUniTask();
 
-            Log.Info($"Init resource package version : {initializationOperation?.PackageVersion}");
+            Log.Info($"Init resource package version : {initializationOperation?.Status}");
+
+            if (needInitMainFest)
+            {
+                // 2. 请求资源清单的版本信息
+                var requestPackageVersionOperation = package.RequestPackageVersionAsync();
+                await requestPackageVersionOperation;
+                if (requestPackageVersionOperation.Status == EOperationStatus.Succeed)
+                {
+                    // 3. 传入的版本信息更新资源清单
+                    var updatePackageManifestAsync = package.UpdatePackageManifestAsync(requestPackageVersionOperation.PackageVersion);
+                    await updatePackageManifestAsync;
+                    if (updatePackageManifestAsync.Status == EOperationStatus.Failed)
+                    {
+                        Log.Fatal($"Update package manifest failed : {updatePackageManifestAsync.Status}");
+                    }
+                }
+                else
+                {
+                    Log.Fatal($"Request package version failed : {requestPackageVersionOperation.Status}");
+                }
+            }
 
             return initializationOperation;
+        }
+
+        /// <summary>
+        /// 创建解密服务。
+        /// </summary>
+        private IDecryptionServices CreateDecryptionServices()
+        {
+            switch (EncryptionType)
+            {
+                case EncryptionType.FileOffSet:
+                    return new FileOffsetDecryption();
+                case EncryptionType.FileStream:
+                    return new FileStreamDecryption();
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// 创建Web解密服务。
+        /// </summary>
+        private IWebDecryptionServices CreateWebDecryptionServices()
+        {
+            switch (EncryptionType)
+            {
+                case EncryptionType.FileOffSet:
+                    return new FileOffsetWebDecryption();
+                case EncryptionType.FileStream:
+                    return new FileStreamWebDecryption();
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// 获取当前资源包版本。
+        /// </summary>
+        /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
+        /// <returns>资源包版本。</returns>
+        public string GetPackageVersion(string customPackageName = "")
+        {
+            var package = string.IsNullOrEmpty(customPackageName)
+                ? YooAssets.GetPackage(DefaultPackageName)
+                : YooAssets.GetPackage(customPackageName);
+            if (package == null)
+            {
+                return string.Empty;
+            }
+
+            return package.GetPackageVersion();
+        }
+
+        /// <summary>
+        /// 异步更新最新包的版本。
+        /// </summary>
+        /// <param name="appendTimeTicks">请求URL是否需要带时间戳。</param>
+        /// <param name="timeout">超时时间。</param>
+        /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
+        /// <returns>请求远端包裹的最新版本操作句柄。</returns>
+        public RequestPackageVersionOperation RequestPackageVersionAsync(bool appendTimeTicks = false, int timeout = 60,
+            string customPackageName = "")
+        {
+            var package = string.IsNullOrEmpty(customPackageName)
+                ? YooAssets.GetPackage(DefaultPackageName)
+                : YooAssets.GetPackage(customPackageName);
+            return package.RequestPackageVersionAsync(appendTimeTicks, timeout);
+        }
+
+        public void SetRemoteServicesUrl(string defaultHostServer, string fallbackHostServer)
+        {
+            HostServerURL = defaultHostServer;
+            FallbackHostServerURL = fallbackHostServer;
+        }
+
+        /// <summary>
+        /// 向网络端请求并更新清单
+        /// </summary>
+        /// <param name="packageVersion">更新的包裹版本</param>
+        /// <param name="timeout">超时时间（默认值：60秒）</param>
+        /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
+        public UpdatePackageManifestOperation UpdatePackageManifestAsync(string packageVersion, int timeout = 60, string customPackageName = "")
+        {
+            var package = string.IsNullOrEmpty(customPackageName)
+                ? YooAssets.GetPackage(this.DefaultPackageName)
+                : YooAssets.GetPackage(customPackageName);
+            return package.UpdatePackageManifestAsync(packageVersion, timeout);
+        }
+
+        /// <summary>
+        /// 创建资源下载器，用于下载当前资源版本所有的资源包文件。
+        /// </summary>
+        /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
+        public ResourceDownloaderOperation CreateResourceDownloader(string customPackageName = "")
+        {
+            ResourcePackage package = null;
+            if (string.IsNullOrEmpty(customPackageName))
+            {
+                package = YooAssets.GetPackage(this.DefaultPackageName);
+            }
+            else
+            {
+                package = YooAssets.GetPackage(customPackageName);
+            }
+
+            Downloader = package.CreateResourceDownloader(DownloadingMaxNum, FailedTryAgain);
+            return Downloader;
         }
 
         internal override void Shutdown()
@@ -264,9 +416,6 @@ namespace GameFramework.Resource
             m_AssetPool = null;
             _assetLoadingList.Clear();
             _assetInfoMap.Clear();
-#if !UNITY_WEBGL
-            YooAssets.Destroy();
-#endif
         }
 
         #region Public Methods
@@ -456,9 +605,9 @@ namespace GameFramework.Resource
         /// <returns>资源句柄。</returns>
         private AssetHandle GetHandleSync<T>(string location, string packageName = "") where T : UnityEngine.Object
         {
-            return GetHandleSync(location,typeof(T), packageName);
+            return GetHandleSync(location, typeof(T), packageName);
         }
-        
+
         private AssetHandle GetHandleSync(string location, Type assetType, string packageName = "")
         {
             if (string.IsNullOrEmpty(packageName))
@@ -481,7 +630,7 @@ namespace GameFramework.Resource
         {
             return GetHandleAsync(location, typeof(T), packageName);
         }
-        
+
         private AssetHandle GetHandleAsync(string location, Type assetType, string packageName = "")
         {
             if (string.IsNullOrEmpty(packageName))
@@ -493,7 +642,7 @@ namespace GameFramework.Resource
             return package.LoadAssetAsync(location, assetType);
         }
         #endregion
-        
+
         /// <summary>
         /// 获取资源定位地址的缓存Key。
         /// </summary>
@@ -508,12 +657,18 @@ namespace GameFramework.Resource
             }
             return $"{packageName}/{location}";
         }
-        
+
         public T LoadAsset<T>(string location, string packageName = "") where T : UnityEngine.Object
         {
             if (string.IsNullOrEmpty(location))
             {
                 throw new GameFrameworkException("Asset name is invalid.");
+            }
+
+            if (!CheckLocationValid(location, packageName))
+            {
+                Log.Error($"Could not found location [{location}].");
+                return null;
             }
 
             string assetObjectKey = GetCacheKey(location, packageName);
@@ -522,12 +677,12 @@ namespace GameFramework.Resource
             {
                 return assetObject.Target as T;
             }
-            
+
             AssetHandle handle = GetHandleSync<T>(location, packageName: packageName);
 
             T ret = handle.AssetObject as T;
-                
-            assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle,this);
+
+            assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle, this);
             m_AssetPool.Register(assetObject, true);
 
             return ret;
@@ -539,24 +694,30 @@ namespace GameFramework.Resource
             {
                 throw new GameFrameworkException("Asset name is invalid.");
             }
-            
+
+            if (!CheckLocationValid(location, packageName))
+            {
+                Log.Error($"Could not found location [{location}].");
+                return null;
+            }
+
             string assetObjectKey = GetCacheKey(location, packageName);
             AssetObject assetObject = m_AssetPool.Spawn(assetObjectKey);
             if (assetObject != null)
             {
                 return AssetsReference.Instantiate(assetObject.Target as GameObject, parent, this).gameObject;
             }
-            
+
             AssetHandle handle = GetHandleSync<GameObject>(location, packageName: packageName);
 
             GameObject gameObject = AssetsReference.Instantiate(handle.AssetObject as GameObject, parent, this).gameObject;
 
-            assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle,this);
+            assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle, this);
             m_AssetPool.Register(assetObject, true);
-            
+
             return gameObject;
         }
-        
+
         /// <summary>
         /// 异步加载资源。
         /// </summary>
@@ -571,14 +732,21 @@ namespace GameFramework.Resource
                 Log.Error("Asset name is invalid.");
                 return;
             }
-            
+
             if (string.IsNullOrEmpty(location))
             {
                 throw new GameFrameworkException("Asset name is invalid.");
             }
-            
+
+            if (!CheckLocationValid(location, packageName))
+            {
+                Log.Error($"Could not found location [{location}].");
+                callback?.Invoke(null);
+                return;
+            }
+
             string assetObjectKey = GetCacheKey(location, packageName);
-            
+
             await TryWaitingLoading(assetObjectKey);
 
             AssetObject assetObject = m_AssetPool.Spawn(assetObjectKey);
@@ -588,20 +756,20 @@ namespace GameFramework.Resource
                 callback?.Invoke(assetObject.Target as T);
                 return;
             }
-            
+
             _assetLoadingList.Add(assetObjectKey);
-            
+
             AssetHandle handle = GetHandleAsync<T>(location, packageName: packageName);
 
             handle.Completed += assetHandle =>
             {
                 _assetLoadingList.Remove(assetObjectKey);
-                
+
                 if (assetHandle.AssetObject != null)
                 {
-                    assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle,this);
+                    assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle, this);
                     m_AssetPool.Register(assetObject, true);
-            
+
                     callback?.Invoke(assetObject.Target as T);
                 }
                 else
@@ -611,44 +779,32 @@ namespace GameFramework.Resource
             };
         }
 
-        public TObject[] LoadSubAssetsSync<TObject>(string location, string packageName = "") where TObject : UnityEngine.Object
-        {
-            if (string.IsNullOrEmpty(location))
-            {
-                throw new GameFrameworkException("Asset name is invalid.");
-            }
-            throw new NotImplementedException();
-        }
-
-        public UniTask<TObject[]> LoadSubAssetsAsync<TObject>(string location, string packageName = "") where TObject : UnityEngine.Object
-        {
-            if (string.IsNullOrEmpty(location))
-            {
-                throw new GameFrameworkException("Asset name is invalid.");
-            }
-            throw new NotImplementedException();
-        }
-
         public async UniTask<T> LoadAssetAsync<T>(string location, CancellationToken cancellationToken = default, string packageName = "") where T : UnityEngine.Object
         {
             if (string.IsNullOrEmpty(location))
             {
                 throw new GameFrameworkException("Asset name is invalid.");
             }
-            
+
+            if (!CheckLocationValid(location, packageName))
+            {
+                Log.Error($"Could not found location [{location}].");
+                return null;
+            }
+
             string assetObjectKey = GetCacheKey(location, packageName);
 
             await TryWaitingLoading(assetObjectKey);
-            
+
             AssetObject assetObject = m_AssetPool.Spawn(assetObjectKey);
             if (assetObject != null)
             {
                 await UniTask.Yield();
                 return assetObject.Target as T;
             }
-            
+
             _assetLoadingList.Add(assetObjectKey);
- 
+
             AssetHandle handle = GetHandleAsync<T>(location, packageName: packageName);
 
             bool cancelOrFailed = await handle.ToUniTask().AttachExternalCancellation(cancellationToken).SuppressCancellationThrow();
@@ -658,12 +814,12 @@ namespace GameFramework.Resource
                 _assetLoadingList.Remove(assetObjectKey);
                 return null;
             }
-            
-            assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle,this);
+
+            assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle, this);
             m_AssetPool.Register(assetObject, true);
 
             _assetLoadingList.Remove(assetObjectKey);
-            
+
             return handle.AssetObject as T;
         }
 
@@ -673,18 +829,24 @@ namespace GameFramework.Resource
             {
                 throw new GameFrameworkException("Asset name is invalid.");
             }
-            
+
+            if (!CheckLocationValid(location, packageName))
+            {
+                Log.Error($"Could not found location [{location}].");
+                return null;
+            }
+
             string assetObjectKey = GetCacheKey(location, packageName);
-            
+
             await TryWaitingLoading(assetObjectKey);
-            
+
             AssetObject assetObject = m_AssetPool.Spawn(assetObjectKey);
             if (assetObject != null)
             {
                 await UniTask.Yield();
                 return AssetsReference.Instantiate(assetObject.Target as GameObject, parent, this).gameObject;
             }
-            
+
             _assetLoadingList.Add(assetObjectKey);
 
             AssetHandle handle = GetHandleAsync<GameObject>(location, packageName: packageName);
@@ -698,12 +860,12 @@ namespace GameFramework.Resource
             }
 
             GameObject gameObject = AssetsReference.Instantiate(handle.AssetObject as GameObject, parent, this).gameObject;
-            
-            assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle,this);
+
+            assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle, this);
             m_AssetPool.Register(assetObject, true);
 
             _assetLoadingList.Remove(assetObjectKey);
-            
+
             return gameObject;
         }
 
@@ -729,13 +891,24 @@ namespace GameFramework.Resource
             {
                 throw new GameFrameworkException("Load asset callbacks is invalid.");
             }
-            
+
+            if (!CheckLocationValid(location, packageName))
+            {
+                string errorMessage = Utility.Text.Format("Could not found location [{0}].", location);
+                Log.Error(errorMessage);
+                if (loadAssetCallbacks.LoadAssetFailureCallback != null)
+                {
+                    loadAssetCallbacks.LoadAssetFailureCallback(location, LoadResourceStatus.NotExist, errorMessage, userData);
+                }
+                return;
+            }
+
             string assetObjectKey = GetCacheKey(location, packageName);
-            
+
             await TryWaitingLoading(assetObjectKey);
-            
+
             float duration = Time.time;
-            
+
             AssetObject assetObject = m_AssetPool.Spawn(assetObjectKey);
             if (assetObject != null)
             {
@@ -743,15 +916,15 @@ namespace GameFramework.Resource
                 loadAssetCallbacks.LoadAssetSuccessCallback(location, assetObject.Target, Time.time - duration, userData);
                 return;
             }
-            
+
             _assetLoadingList.Add(assetObjectKey);
-            
+
             AssetInfo assetInfo = GetAssetInfo(location, packageName);
 
             if (!string.IsNullOrEmpty(assetInfo.Error))
             {
                 _assetLoadingList.Remove(assetObjectKey);
-                
+
                 string errorMessage = Utility.Text.Format("Can not load asset '{0}' because :'{1}'.", location, assetInfo.Error);
                 if (loadAssetCallbacks.LoadAssetFailureCallback != null)
                 {
@@ -768,13 +941,13 @@ namespace GameFramework.Resource
             {
                 InvokeProgress(location, handle, loadAssetCallbacks.LoadAssetUpdateCallback, userData).Forget();
             }
-            
+
             await handle.ToUniTask();
 
             if (handle.AssetObject == null || handle.Status == EOperationStatus.Failed)
             {
                 _assetLoadingList.Remove(assetObjectKey);
-                
+
                 string errorMessage = Utility.Text.Format("Can not load asset '{0}'.", location);
                 if (loadAssetCallbacks.LoadAssetFailureCallback != null)
                 {
@@ -786,15 +959,15 @@ namespace GameFramework.Resource
             }
             else
             {
-                assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle,this);
+                assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle, this);
                 m_AssetPool.Register(assetObject, true);
-                
+
                 _assetLoadingList.Remove(assetObjectKey);
-                
+
                 if (loadAssetCallbacks.LoadAssetSuccessCallback != null)
                 {
                     duration = Time.time - duration;
-                    
+
                     loadAssetCallbacks.LoadAssetSuccessCallback(location, handle.AssetObject, duration, userData);
                 }
             }
@@ -819,13 +992,24 @@ namespace GameFramework.Resource
             {
                 throw new GameFrameworkException("Load asset callbacks is invalid.");
             }
-            
+
+            if (!CheckLocationValid(location, packageName))
+            {
+                string errorMessage = Utility.Text.Format("Could not found location [{0}].", location);
+                Log.Error(errorMessage);
+                if (loadAssetCallbacks.LoadAssetFailureCallback != null)
+                {
+                    loadAssetCallbacks.LoadAssetFailureCallback(location, LoadResourceStatus.NotExist, errorMessage, userData);
+                }
+                return;
+            }
+
             string assetObjectKey = GetCacheKey(location, packageName);
-            
+
             await TryWaitingLoading(assetObjectKey);
-            
+
             float duration = Time.time;
-            
+
             AssetObject assetObject = m_AssetPool.Spawn(assetObjectKey);
             if (assetObject != null)
             {
@@ -833,7 +1017,7 @@ namespace GameFramework.Resource
                 loadAssetCallbacks.LoadAssetSuccessCallback(location, assetObject.Target, Time.time - duration, userData);
                 return;
             }
-            
+
             _assetLoadingList.Add(assetObjectKey);
 
             AssetInfo assetInfo = GetAssetInfo(location, packageName);
@@ -841,7 +1025,7 @@ namespace GameFramework.Resource
             if (!string.IsNullOrEmpty(assetInfo.Error))
             {
                 _assetLoadingList.Remove(assetObjectKey);
-                
+
                 string errorMessage = Utility.Text.Format("Can not load asset '{0}' because :'{1}'.", location, assetInfo.Error);
                 if (loadAssetCallbacks.LoadAssetFailureCallback != null)
                 {
@@ -851,20 +1035,20 @@ namespace GameFramework.Resource
 
                 throw new GameFrameworkException(errorMessage);
             }
-            
+
             AssetHandle handle = GetHandleAsync(location, assetInfo.AssetType, packageName: packageName);
 
             if (loadAssetCallbacks.LoadAssetUpdateCallback != null)
             {
                 InvokeProgress(location, handle, loadAssetCallbacks.LoadAssetUpdateCallback, userData).Forget();
             }
-            
+
             await handle.ToUniTask();
 
             if (handle.AssetObject == null || handle.Status == EOperationStatus.Failed)
             {
                 _assetLoadingList.Remove(assetObjectKey);
-                
+
                 string errorMessage = Utility.Text.Format("Can not load asset '{0}'.", location);
                 if (loadAssetCallbacks.LoadAssetFailureCallback != null)
                 {
@@ -876,9 +1060,9 @@ namespace GameFramework.Resource
             }
             else
             {
-                assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle,this);
+                assetObject = AssetObject.Create(assetObjectKey, handle.AssetObject, handle, this);
                 m_AssetPool.Register(assetObject, true);
-                
+
                 _assetLoadingList.Remove(assetObjectKey);
 
                 if (loadAssetCallbacks.LoadAssetSuccessCallback != null)
@@ -896,20 +1080,56 @@ namespace GameFramework.Resource
             {
                 throw new GameFrameworkException("Asset name is invalid.");
             }
-            
+
             if (loadAssetUpdateCallback != null)
             {
-                while (assetHandle is { IsValid: true, IsDone: false })
+                while (assetHandle != null && assetHandle.IsValid && !assetHandle.IsDone)
                 {
                     await UniTask.Yield();
-                
+
                     loadAssetUpdateCallback.Invoke(location, assetHandle.Progress, userData);
                 }
             }
         }
-        
+
+        /// <summary>
+        /// 获取同步加载的资源操作句柄。
+        /// </summary>
+        /// <param name="location">资源定位地址。</param>
+        /// <param name="packageName">资源包名称。</param>
+        /// <typeparam name="T">资源类型。</typeparam>
+        /// <returns>资源操作句柄。</returns>
+        public AssetHandle LoadAssetSyncHandle<T>(string location, string packageName = "") where T : UnityEngine.Object
+        {
+            if (string.IsNullOrEmpty(packageName))
+            {
+                return YooAssets.LoadAssetSync<T>(location);
+            }
+
+            var package = YooAssets.GetPackage(packageName);
+            return package.LoadAssetSync<T>(location);
+        }
+
+        /// <summary>
+        /// 获取异步加载的资源操作句柄。
+        /// </summary>
+        /// <param name="location">资源定位地址。</param>
+        /// <param name="packageName">资源包名称。</param>
+        /// <typeparam name="T">资源类型。</typeparam>
+        /// <returns>资源操作句柄。</returns>
+        public AssetHandle LoadAssetAsyncHandle<T>(string location, string packageName = "") where T : UnityEngine.Object
+        {
+            if (string.IsNullOrEmpty(packageName))
+            {
+                return YooAssets.LoadAssetAsync<T>(location);
+            }
+
+            var package = YooAssets.GetPackage(packageName);
+            return package.LoadAssetAsync<T>(location);
+        }
+
         private readonly TimeoutController _timeoutController = new TimeoutController();
-        
+
         private async UniTask TryWaitingLoading(string assetObjectKey)
         {
             if (_assetLoadingList.Contains(assetObjectKey))
@@ -917,15 +1137,15 @@ namespace GameFramework.Resource
                 try
                 {
                     await UniTask.WaitUntil(
-                        () => !_assetLoadingList.Contains(assetObjectKey), 
-                        cancellationToken:CancellationToken)
+                        () => !_assetLoadingList.Contains(assetObjectKey),
+                        cancellationToken: CancellationToken)
 #if UNITY_EDITOR
                         .AttachExternalCancellation(_timeoutController.Timeout(TimeSpan.FromSeconds(60)));
                     _timeoutController.Reset();
 #else
                     ;
 #endif
-                
+
                 }
                 catch (OperationCanceledException ex)
                 {
@@ -939,14 +1159,31 @@ namespace GameFramework.Resource
         #endregion
 
         #region 资源回收
+        public void OnLowMemory()
+        {
+            Log.Warning("Low memory reported...");
+            _forceUnloadUnusedAssetsAction?.Invoke(true);
+        }
+
+        private Action<bool> _forceUnloadUnusedAssetsAction;
+
+        /// <summary>
+        /// 低内存回调保护。
+        /// </summary>
+        /// <param name="action">低内存行为。</param>
+        public void SetForceUnloadUnusedAssetsAction(Action<bool> action)
+        {
+            _forceUnloadUnusedAssetsAction = action;
+        }
+
         public void UnloadUnusedAssets()
         {
             m_AssetPool.ReleaseAllUnused();
             foreach (var package in PackageMap.Values)
             {
-                if (package is { InitializeStatus: EOperationStatus.Succeed })
+                if (package != null && package.InitializeStatus == EOperationStatus.Succeed)
                 {
-                    package.UnloadUnusedAssets();
+                    package.UnloadUnusedAssetsAsync();
                 }
             }
         }
@@ -957,16 +1194,44 @@ namespace GameFramework.Resource
             Log.Warning($"WebGL not support invoke {nameof(ForceUnloadAllAssets)}");
 			return;
 #else
-            
+
             foreach (var package in PackageMap.Values)
             {
-                if (package is { InitializeStatus: EOperationStatus.Succeed })
+                if (package != null && package.InitializeStatus == EOperationStatus.Succeed)
                 {
-                    package.ForceUnloadAllAssets();
+                    package.UnloadAllAssetsAsync();
                 }
             }
 #endif
         }
+
+        /// <summary>
+        /// 清理包裹未使用的缓存文件。
+        /// </summary>
+        /// <param name="clearMode">文件清理方式。</param>
+        /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
+        public ClearCacheFilesOperation ClearCacheFilesAsync(
+            EFileClearMode clearMode = EFileClearMode.ClearUnusedBundleFiles,
+            string customPackageName = "")
+        {
+            var package = string.IsNullOrEmpty(customPackageName)
+                ? YooAssets.GetPackage(DefaultPackageName)
+                : YooAssets.GetPackage(customPackageName);
+            return package.ClearCacheFilesAsync(EFileClearMode.ClearUnusedBundleFiles);
+        }
+
+        /// <summary>
+        /// 清理沙盒路径。
+        /// </summary>
+        /// <param name="customPackageName">指定资源包的名称。不传使用默认资源包</param>
+        public void ClearAllBundleFiles(string customPackageName = "")
+        {
+            var package = string.IsNullOrEmpty(customPackageName)
+                ? YooAssets.GetPackage(DefaultPackageName)
+                : YooAssets.GetPackage(customPackageName);
+            package.ClearCacheFilesAsync(EFileClearMode.ClearAllBundleFiles);
+        }
+
         #endregion
     }
 }

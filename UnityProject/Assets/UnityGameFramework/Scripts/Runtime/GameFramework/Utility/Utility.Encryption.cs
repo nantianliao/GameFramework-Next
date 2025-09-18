@@ -20,6 +20,7 @@ namespace GameFramework
             public static byte[] GetQuickXorBytes(byte[] bytes, byte[] code)
             {
                 return GetXorBytes(bytes, 0, QuickEncryptLength, code);
+                // return GetXorBytes(bytes, 0, Math.Min(QuickEncryptLength, bytes.Length), code);
             }
 
             /// <summary>
@@ -30,6 +31,7 @@ namespace GameFramework
             public static void GetQuickSelfXorBytes(byte[] bytes, byte[] code)
             {
                 GetSelfXorBytes(bytes, 0, QuickEncryptLength, code);
+                // GetSelfXorBytes(bytes, 0, Math.Min(QuickEncryptLength, bytes.Length), code);
             }
 
             /// <summary>

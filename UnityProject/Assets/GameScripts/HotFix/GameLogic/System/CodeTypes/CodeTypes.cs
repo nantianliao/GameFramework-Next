@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace GameLogic
@@ -7,29 +8,60 @@ namespace GameLogic
     public class CodeTypes
     {
         private static CodeTypes s_Instance;
-        public static CodeTypes Instance => s_Instance ??= new CodeTypes();
+        // public static CodeTypes Instance => s_Instance ??= new CodeTypes();
+        public static CodeTypes Instance
+        {
+            get
+            {
+                if (s_Instance == null)
+                    s_Instance = new CodeTypes();
 
-        private readonly Dictionary<string, Type> m_AllTypes = new();
-        private readonly UnOrderMultiMapSet<Type, Type> m_Types = new();
-        
+                return s_Instance;
+            }
+            set
+            {
+                s_Instance = value;
+            }
+        }
+
+        private readonly Dictionary<string, Type> m_AllTypes = new Dictionary<string, Type>();
+        private readonly UnOrderMultiMapSet<Type, Type> m_Types = new UnOrderMultiMapSet<Type, Type>();
+
         public void Init(Assembly[] assemblies)
         {
             Dictionary<string, Type> addTypes = GetAssemblyTypes(assemblies);
-            foreach ((string fullName, Type type) in addTypes)
-            {
-                m_AllTypes[fullName] = type;
-                
-                if (type.IsAbstract)
-                {
-                    continue;
-                }
-                
-                // 记录所有的有BaseAttribute标记的的类型
-                object[] objects = type.GetCustomAttributes(typeof(BaseAttribute), true);
 
+            // foreach ((string fullName, Type type) in addTypes)
+            // {
+            //     m_AllTypes[fullName] = type;
+
+            //     if (type.IsAbstract)
+            //     {
+            //         continue;
+            //     }
+
+            //     // 记录所有的有BaseAttribute标记的的类型
+            //     object[] objects = type.GetCustomAttributes(typeof(BaseAttribute), true);
+
+            //     foreach (object o in objects)
+            //     {
+            //         m_Types.Add(o.GetType(), type);
+            //     }
+            // }
+
+            for (int i = 0; i < addTypes.Count; i++)
+            {
+                var type = addTypes.ElementAt(i);
+                m_AllTypes[type.Key] = type.Value;
+
+                if (type.Value.IsAbstract)
+                    continue;
+
+                // 记录所有的有BaseAttribute标记的的类型
+                object[] objects = type.Value.GetCustomAttributes(typeof(BaseAttribute), true);
                 foreach (object o in objects)
                 {
-                    m_Types.Add(o.GetType(), type);
+                    m_Types.Add(o.GetType(), type.Value);
                 }
             }
         }

@@ -97,7 +97,7 @@ namespace UnityGameFramework.Runtime
             {
                 if (m_AllEventListenerMap.TryGetValue(eventId, out var listListener))
                 {
-                    for (int i = listListener.Count - 1; i >= 0 ; i--)
+                    for (int i = listListener.Count - 1; i >= 0; i--)
                     {
                         if (listListener[i].IsDeleted)
                         {
@@ -147,7 +147,7 @@ namespace UnityGameFramework.Runtime
 
 #if UNITY_EDITOR
                 Log.Assert(iEventCnt == m_ProcessEventList.Count);
-                Log.Assert(eventId == m_ProcessEventList[^1]);
+                Log.Assert(eventId == m_ProcessEventList[m_ProcessEventList.Count - 1]);
 #endif
                 m_ProcessEventList.RemoveAt(m_ProcessEventList.Count - 1);
 
@@ -192,7 +192,7 @@ namespace UnityGameFramework.Runtime
 
 #if UNITY_EDITOR
                 Log.Assert(iEventCnt == m_ProcessEventList.Count);
-                Log.Assert(eventId == m_ProcessEventList[^1]);
+                Log.Assert(eventId == m_ProcessEventList[m_ProcessEventList.Count - 1]);
 #endif
 
                 m_ProcessEventList.RemoveAt(m_ProcessEventList.Count - 1);
@@ -240,7 +240,7 @@ namespace UnityGameFramework.Runtime
 
 #if UNITY_EDITOR
                 Log.Assert(iEventCnt == m_ProcessEventList.Count);
-                Log.Assert(eventId == m_ProcessEventList[^1]);
+                Log.Assert(eventId == m_ProcessEventList[m_ProcessEventList.Count - 1]);
 #endif
                 m_ProcessEventList.RemoveAt(m_ProcessEventList.Count - 1);
 
@@ -289,7 +289,7 @@ namespace UnityGameFramework.Runtime
 
 #if UNITY_EDITOR
                 Log.Assert(iEventCnt == m_ProcessEventList.Count);
-                Log.Assert(eventId == m_ProcessEventList[^1]);
+                Log.Assert(eventId == m_ProcessEventList[m_ProcessEventList.Count - 1]);
 #endif
                 m_ProcessEventList.RemoveAt(m_ProcessEventList.Count - 1);
 
@@ -341,7 +341,7 @@ namespace UnityGameFramework.Runtime
 
 #if UNITY_EDITOR
                 Log.Assert(iEventCnt == m_ProcessEventList.Count);
-                Log.Assert(eventId == m_ProcessEventList[^1]);
+                Log.Assert(eventId == m_ProcessEventList[m_ProcessEventList.Count - 1]);
 #endif
                 m_ProcessEventList.RemoveAt(m_ProcessEventList.Count - 1);
 
@@ -461,7 +461,7 @@ namespace UnityGameFramework.Runtime
                 bool isProcessing = m_ProcessEventList.Contains(eventId);
                 bool delayDeleted = false;
 
-                for (int i = list.Count - 1; i >= 0 ; i--)
+                for (int i = list.Count - 1; i >= 0; i--)
                 {
                     var regInfo = list[i];
                     if (regInfo.Owner == owner)
@@ -587,7 +587,7 @@ namespace UnityGameFramework.Runtime
             DestroyAllEventListener();
         }
     }
-    
+
     /// <summary>
     /// 事件注册信息。
     /// </summary>
@@ -614,7 +614,7 @@ namespace UnityGameFramework.Runtime
             Owner = owner;
             IsDeleted = false;
         }
-        
+
         public EventRegInfo() { }
 
         public void Clear()
@@ -632,7 +632,7 @@ namespace UnityGameFramework.Runtime
             ret.IsDeleted = false;
             return ret;
         }
-        
+
         public static void Release(EventRegInfo eventRegInfo)
         {
             ReferencePool.Release(eventRegInfo);

@@ -19,25 +19,28 @@ namespace UnityGameFramework.Runtime
     [AddComponentMenu("Game Framework/ResourceExt")]
     public partial class ResourceExtComponent : GameFrameworkComponent
     {
-                
+        public static ResourceExtComponent Instance { private set; get; }
+
         private readonly TimeoutController _timeoutController = new TimeoutController();
-        
+
         /// <summary>
         /// 正在加载的资源列表。
         /// </summary>
         private readonly HashSet<string> _assetLoadingList = new HashSet<string>();
-        
+
         /// <summary>
         /// 检查是否可以释放间隔
         /// </summary>
-        [SerializeField] private float m_CheckCanReleaseInterval = 30f;
+        [SerializeField]
+        private float m_CheckCanReleaseInterval = 30f;
 
         private float m_CheckCanReleaseTime = 0.0f;
 
         /// <summary>
         /// 对象池自动释放时间间隔
         /// </summary>
-        [SerializeField] private float m_AutoReleaseInterval = 60f;
+        [SerializeField]
+        private float m_AutoReleaseInterval = 60f;
 
         /// <summary>
         /// 保存加载的图片对象
@@ -68,7 +71,7 @@ namespace UnityGameFramework.Runtime
                 "SetAssetPool",
                 m_AutoReleaseInterval, 16, 60, 0);
             m_LoadAssetObjectsLinkedList = new LinkedList<LoadAssetObject>();
-            
+
             InitializedResources();
         }
 
@@ -118,7 +121,7 @@ namespace UnityGameFramework.Runtime
             m_LoadAssetObjectsLinkedList.AddLast(new LoadAssetObject(setAssetObject, assetObject));
             setAssetObject.SetAsset(assetObject);
         }
-        
+
         private async UniTask TryWaitingLoading(string assetObjectKey)
         {
             if (_assetLoadingList.Contains(assetObjectKey))
@@ -133,7 +136,7 @@ namespace UnityGameFramework.Runtime
 #else
                     ;
 #endif
-                
+
                 }
                 catch (OperationCanceledException ex)
                 {

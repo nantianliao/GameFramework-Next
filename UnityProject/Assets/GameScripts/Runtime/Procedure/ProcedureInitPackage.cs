@@ -1,5 +1,6 @@
 ﻿using System;
 using Cysharp.Threading.Tasks;
+using GameFramework.Resource;
 using UnityGameFramework.Runtime;
 using YooAsset;
 using ProcedureOwner = GameFramework.Fsm.IFsm<GameFramework.Procedure.IProcedureManager>;
@@ -16,66 +17,71 @@ namespace GameMain
         protected override void OnEnter(ProcedureOwner procedureOwner)
         {
             base.OnEnter(procedureOwner);
-            
+
             //Fire Forget立刻触发UniTask初始化Package
             InitPackage(procedureOwner).Forget();
         }
 
         private async UniTaskVoid InitPackage(ProcedureOwner procedureOwner)
         {
-            await UniTask.WaitForSeconds(0.1f);
             try
             {
-                var package = YooAssets.TryGetPackage(GameModule.Resource.PackageName);
-                if (package != null && package.InitializeStatus == EOperationStatus.Succeed)
-                {
-                    OnInitSuccess(procedureOwner);
-                    return;
-                }
-                var initializationOperation = await GameModule.Resource.InitPackage();
+                var initializationOperation = await _resourceManager.InitPackage(_resourceManager.DefaultPackageName);
 
                 if (initializationOperation.Status == EOperationStatus.Succeed)
                 {
-                    OnInitSuccess(procedureOwner);
+                    //热更新阶段文本初始化
+                    LoadText.Instance.InitConfigData(null);
+
+                    EPlayMode playMode = _resourceManager.PlayMode;
+
+                    // 编辑器模式。
+                    if (playMode == EPlayMode.EditorSimulateMode)
+                    {
+                        Log.Info("Editor resource mode detected.");
+                        ChangeState<ProcedureInitResources>(procedureOwner);
+                    }
+                    // 单机模式。
+                    else if (playMode == EPlayMode.OfflinePlayMode)
+                    {
+                        Log.Info("Package resource mode detected.");
+                        ChangeState<ProcedureInitResources>(procedureOwner);
+                    }
+                    // 可更新模式。
+                    else if (playMode == EPlayMode.HostPlayMode ||
+                             playMode == EPlayMode.WebPlayMode)
+                    {
+                        // 打开启动UI。
+                        UILoadMgr.Show(UIDefine.UILoadUpdate);
+
+                        Log.Info("Updatable resource mode detected.");
+                        ChangeState<ProcedureInitResources>(procedureOwner);
+                    }
+                    else
+                    {
+                        Log.Error("UnKnow resource mode detected Please check???");
+                    }
                 }
                 else
                 {
-                    OnInitPackageFailed(procedureOwner, initializationOperation.Error);
+                    // 打开启动UI。
+                    UILoadMgr.Show(UIDefine.UILoadUpdate);
+
+                    Log.Error($"{initializationOperation.Error}");
+
+                    // 打开启动UI。
+                    UILoadMgr.Show(UIDefine.UILoadUpdate, $"资源初始化失败！");
+
+                    UILoadTip.ShowMessageBox(
+                        $"资源初始化失败！点击确认重试 \n \n <color=#FF0000>原因{initializationOperation.Error}</color>",
+                        MessageShowType.TwoButton,
+                        LoadStyle.StyleEnum.Style_Retry
+                        , () => { Retry(procedureOwner); }, UnityEngine.Application.Quit);
                 }
             }
             catch (Exception e)
             {
                 OnInitPackageFailed(procedureOwner, e.Message);
-            }
-        }
-
-        private void OnInitSuccess(ProcedureOwner procedureOwner)
-        {
-            // 编辑器模式。
-            if (GameModule.Resource.PlayMode == EPlayMode.EditorSimulateMode)
-            {
-                Log.Info("Editor resource mode detected.");
-                ChangeState<ProcedurePreload>(procedureOwner);
-            }
-            // 单机模式。
-            else if (GameModule.Resource.PlayMode == EPlayMode.OfflinePlayMode)
-            {
-                Log.Info("Package resource mode detected.");
-                ChangeState<ProcedureInitResources>(procedureOwner);
-            }
-            // 可更新模式。
-            else if (GameModule.Resource.PlayMode == EPlayMode.HostPlayMode ||
-                     GameModule.Resource.PlayMode == EPlayMode.WebPlayMode)
-            {
-                // 打开启动UI。
-                UILoadMgr.Show(UIDefine.UILoadUpdate);
-
-                Log.Info("Updatable resource mode detected.");
-                ChangeState<ProcedureUpdateVersion>(procedureOwner);
-            }
-            else
-            {
-                Log.Error("UnKnow resource mode detected Please check???");
             }
         }
 
@@ -89,9 +95,14 @@ namespace GameMain
             // 打开启动UI。
             UILoadMgr.Show(UIDefine.UILoadUpdate, $"资源初始化失败！");
 
+            if (message.Contains("PackageManifest_DefaultPackage.version Error : HTTP/1.1 404 Not Found"))
+            {
+                message = "请检查StreamingAssets/package/DefaultPackage/PackageManifest_DefaultPackage.version是否存在";
+            }
+
             UILoadTip.ShowMessageBox($"资源初始化失败！点击确认重试 \n \n <color=#FF0000>原因{message}</color>", MessageShowType.TwoButton,
                 LoadStyle.StyleEnum.Style_Retry
-                , () => { Retry(procedureOwner); }, 
+                , () => { Retry(procedureOwner); },
                 GameModule.QuitApplication);
         }
 

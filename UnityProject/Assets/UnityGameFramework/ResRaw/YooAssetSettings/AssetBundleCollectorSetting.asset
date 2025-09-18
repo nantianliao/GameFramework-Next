@@ -21,8 +21,8 @@ MonoBehaviour:
     EnableAddressable: 1
     LocationToLower: 0
     IncludeAssetGUID: 0
-    IgnoreDefaultType: 1
     AutoCollectShaders: 1
+    IgnoreRuleName: NormalIgnoreRule
     Groups:
     - GroupName: Actor
       GroupDesc: 
@@ -43,7 +43,7 @@ MonoBehaviour:
       ActiveRuleName: EnableGroup
       Collectors:
       - CollectPath: Assets/AssetRaw/Audios
-        CollectorGUID: 8ef7a411b66e70f4cb65c2233c9a0868
+        CollectorGUID: 28c29f4e781965a4eaafab3cfa17a68d
         CollectorType: 0
         AddressRuleName: AddressByFileName
         PackRuleName: PackDirectory
@@ -121,7 +121,7 @@ MonoBehaviour:
       ActiveRuleName: EnableGroup
       Collectors:
       - CollectPath: Assets/AssetRaw/Scenes
-        CollectorGUID: cace6ee6539f661419b5e5f8ae1c0146
+        CollectorGUID: 2fe0a1c8a9f532b47bad3884ba59f040
         CollectorType: 0
         AddressRuleName: AddressByFileName
         PackRuleName: PackDirectory
@@ -133,8 +133,8 @@ MonoBehaviour:
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
-      - CollectPath: Assets/AssetRaw/UI
-        CollectorGUID: 27e87d83814156648b58f380b834e046
+      - CollectPath: Assets/AssetRaw/UIPrefab
+        CollectorGUID: 1667860c29001d94d858dc26eda68835
         CollectorType: 0
         AddressRuleName: AddressByFileName
         PackRuleName: PackSeparately
@@ -154,21 +154,13 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
-      - CollectPath: Assets/AssetRaw/UIRaw/Raw
-        CollectorGUID: 6bc134b912ac6bb4399ea1bec4c11636
-        CollectorType: 0
-        AddressRuleName: AddressByFileName
-        PackRuleName: PackDirectory
-        FilterRuleName: CollectAll
-        AssetTags: 
-        UserData: 
     - GroupName: Shader
       GroupDesc: 
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
-      - CollectPath: Assets/AssetRaw/Shaders
-        CollectorGUID: 2a4bceb84ed685447ace957f497eb810
+      - CollectPath: Assets/AssetRaw/Shader
+        CollectorGUID: 9f7e50a10d3067540b6f147ee15b62db
         CollectorType: 0
         AddressRuleName: AddressByFileName
         PackRuleName: PackDirectory
@@ -180,8 +172,8 @@ MonoBehaviour:
     EnableAddressable: 1
     LocationToLower: 0
     IncludeAssetGUID: 0
-    IgnoreDefaultType: 1
     AutoCollectShaders: 1
+    IgnoreRuleName: NormalIgnoreRule
     Groups:
     - GroupName: ModelGroup
       GroupDesc: 
@@ -198,8 +190,8 @@ MonoBehaviour:
     EnableAddressable: 1
     LocationToLower: 0
     IncludeAssetGUID: 0
-    IgnoreDefaultType: 1
     AutoCollectShaders: 1
+    IgnoreRuleName: NormalIgnoreRule
     Groups:
     - GroupName: ModelGroup
       GroupDesc: 
@@ -216,8 +208,8 @@ MonoBehaviour:
     EnableAddressable: 1
     LocationToLower: 0
     IncludeAssetGUID: 0
-    IgnoreDefaultType: 1
     AutoCollectShaders: 1
+    IgnoreRuleName: NormalIgnoreRule
     Groups:
     - GroupName: ModelGroup
       GroupDesc: 

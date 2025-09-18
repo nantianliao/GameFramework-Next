@@ -25,8 +25,8 @@ namespace UnityGameFramework.Editor
             }
 
             BuildTarget target = GetBuildTarget(platform);
-            
-            BuildDLLCommand.BuildAndCopyDlls(target);
+
+            // BuildDLLCommand.BuildAndCopyDlls(target);
         }
 
         public static void BuildAssetBundle()
@@ -56,13 +56,89 @@ namespace UnityGameFramework.Editor
             BuildInternal(target, outputRoot);
             Debug.LogWarning($"Start BuildPackage BuildTarget:{target} outputPath:{outputRoot}");
         }
-        
-        [MenuItem("Game Framework/Quick Build/一键打包AssetBundle")]
+
+        [MenuItem("GameFramework/Quick Build/一键打包AssetBundle")]
         public static void BuildCurrentPlatformAB()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
             BuildInternal(target, Application.dataPath + "/../Builds/", packageVersion: GetBuildPackageVersion());
             AssetDatabase.Refresh();
+            //复制到打包后的StreamingAssets
+            CopyStreamingAssetsFiles();
+        }
+
+        /// <summary>
+        /// 复制StreamingAssets文件去打包目录
+        /// </summary>
+        public static void CopyStreamingAssetsFiles()
+        {
+            if (!SettingsUtils.IsAutoAssetCopeToBuildAddress())
+            {
+                Debug.Log("UpdateSetting.IsAutoAssetCopeToBuildAddress关闭,并不会生产到打包目录中");
+                return;
+            }
+            // 获取StreamingAssets路径
+            string streamingAssetsPath = Application.streamingAssetsPath;
+
+            // 目标路径，可以是任何你想要的目录
+            string targetPath = SettingsUtils.GetBuildAddress();
+
+            // 判断目标路径是相对路径还是绝对路径
+            if (!System.IO.Path.IsPathRooted(targetPath))
+            {
+                // 如果是相对路径，结合 StreamingAssets 的路径进行合并
+                targetPath = System.IO.Path.Combine(streamingAssetsPath, targetPath);
+            }
+
+            // 如果目标目录不存在，创建它
+            if (!System.IO.Directory.Exists(targetPath))
+            {
+                Debug.LogError("打包目录不存在,检查UpdateSetting BuildAddress:" + targetPath);
+                return;
+            }
+            // 删除目标路径下的所有文件
+            string[] Deletefiles = System.IO.Directory.GetFiles(targetPath);
+            foreach (var file in Deletefiles)
+            {
+                System.IO.File.Delete(file);
+                Debug.Log($"删除文件: {file}");
+            }
+
+            // 删除目标路径下的所有子目录
+            string[] directories = System.IO.Directory.GetDirectories(targetPath);
+            foreach (var directory in directories)
+            {
+                System.IO.Directory.Delete(directory, true); // true 表示递归删除子目录及其中内容
+                Debug.Log($"删除目录: {directory}");
+            }
+
+            // 获取StreamingAssets中的所有文件，排除.meta文件
+            string[] files = System.IO.Directory.GetFiles(streamingAssetsPath, "*", System.IO.SearchOption.AllDirectories);
+
+            // 遍历并复制文件到目标目录
+            foreach (var file in files)
+            {
+                // 排除.meta文件
+                if (file.EndsWith(".meta"))
+                    continue;
+
+                // 获取相对路径，用于在目标目录中创建相同的文件结构
+                string relativePath = file.Substring(streamingAssetsPath.Length + 1);
+                string destinationFilePath = System.IO.Path.Combine(targetPath, relativePath);
+
+                // 确保目标文件夹存在
+                string destinationDir = System.IO.Path.GetDirectoryName(destinationFilePath);
+                if (!System.IO.Directory.Exists(destinationDir))
+                {
+                    System.IO.Directory.CreateDirectory(destinationDir);
+                }
+
+                // 复制文件
+                System.IO.File.Copy(file, destinationFilePath, true); // true 表示覆盖已存在的文件
+
+
+            }
+            Debug.Log($"复制文件完成：{targetPath}");
         }
 
         private static BuildTarget GetBuildTarget(string platform)
@@ -109,44 +185,48 @@ namespace UnityGameFramework.Editor
 
             IBuildPipeline pipeline = null;
             BuildParameters buildParameters = null;
-            
+
             if (buildPipeline == EBuildPipeline.BuiltinBuildPipeline)
             {
                 // 构建参数
                 BuiltinBuildParameters builtinBuildParameters = new BuiltinBuildParameters();
-                
+
                 // 执行构建
                 pipeline = new BuiltinBuildPipeline();
                 buildParameters = builtinBuildParameters;
-                
+
                 builtinBuildParameters.CompressOption = ECompressOption.LZ4;
             }
             else
             {
                 ScriptableBuildParameters scriptableBuildParameters = new ScriptableBuildParameters();
-                
+
                 // 执行构建
                 pipeline = new ScriptableBuildPipeline();
                 buildParameters = scriptableBuildParameters;
-                
+
                 scriptableBuildParameters.CompressOption = ECompressOption.LZ4;
+
+                scriptableBuildParameters.BuiltinShadersBundleName = GetBuiltinShaderBundleName("DefaultPackage");
             }
-            
+
             buildParameters.BuildOutputRoot = AssetBundleBuilderHelper.GetDefaultBuildOutputRoot();
             buildParameters.BuildinFileRoot = AssetBundleBuilderHelper.GetStreamingAssetsRoot();
             buildParameters.BuildPipeline = buildPipeline.ToString();
             buildParameters.BuildTarget = buildTarget;
-            buildParameters.BuildMode = EBuildMode.IncrementalBuild;
+            buildParameters.BuildBundleType = (int)EBuildBundleType.AssetBundle;
             buildParameters.PackageName = "DefaultPackage";
             buildParameters.PackageVersion = packageVersion;
             buildParameters.VerifyBuildingResult = true;
-            buildParameters.FileNameStyle =  EFileNameStyle.BundleName_HashName;
-            buildParameters.BuildinFileCopyOption = EBuildinFileCopyOption.ClearAndCopyAll;
-            buildParameters.BuildinFileCopyParams = string.Empty;
-            buildParameters.EncryptionServices = CreateEncryptionInstance("DefaultPackage",buildPipeline);
             // 启用共享资源打包
             buildParameters.EnableSharePackRule = true;
-            
+            buildParameters.FileNameStyle = EFileNameStyle.BundleName_HashName;
+            buildParameters.BuildinFileCopyOption = EBuildinFileCopyOption.ClearAndCopyAll;
+            buildParameters.BuildinFileCopyParams = string.Empty;
+            buildParameters.EncryptionServices = CreateEncryptionInstance("DefaultPackage", buildPipeline);
+            buildParameters.ClearBuildCacheFiles = false; //不清理构建缓存，启用增量构建，可以提高打包速度！
+            buildParameters.UseAssetDependencyDB = true; //使用资源依赖关系数据库，可以提高打包速度！
+
             var buildResult = pipeline.Run(buildParameters, true);
             if (buildResult.Success)
             {
@@ -156,15 +236,25 @@ namespace UnityGameFramework.Editor
             {
                 Debug.LogError($"构建失败 : {buildResult.ErrorInfo}");
             }
-            
         }
-        
+
+        /// <summary>
+        /// 内置着色器资源包名称
+        /// 注意：和自动收集的着色器资源包名保持一致！
+        /// </summary>
+        private static string GetBuiltinShaderBundleName(string packageName)
+        {
+            var uniqueBundleName = AssetBundleCollectorSettingData.Setting.UniqueBundleName;
+            var packRuleResult = DefaultPackRule.CreateShadersPackRuleResult();
+            return packRuleResult.GetBundleName(packageName, uniqueBundleName);
+        }
+
         /// <summary>
         /// 创建加密类实例
         /// </summary>
         private static IEncryptionServices CreateEncryptionInstance(string packageName, EBuildPipeline buildPipeline)
         {
-            var encryptionClassName = AssetBundleBuilderSetting.GetPackageEncyptionClassName(packageName, buildPipeline);
+            var encryptionClassName = AssetBundleBuilderSetting.GetPackageEncyptionServicesClassName(packageName, buildPipeline.ToString());
             var encryptionClassTypes = EditorTools.GetAssignableTypes(typeof(IEncryptionServices));
             var classType = encryptionClassTypes.Find(x => x.FullName != null && x.FullName.Equals(encryptionClassName));
             if (classType != null)
@@ -178,15 +268,15 @@ namespace UnityGameFramework.Editor
             }
         }
 
-        [MenuItem("Game Framework/Quick Build/一键打包Window", false, 90)]
+        [MenuItem("GameFramework/Quick Build/一键打包Window", false, 30)]
         public static void AutomationBuild()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
-            BuildDLLCommand.BuildAndCopyDlls(target);
+            // BuildDLLCommand.BuildAndCopyDlls(target);
             AssetDatabase.Refresh();
             BuildInternal(target, Application.dataPath + "/../Builds/Windows", packageVersion: GetBuildPackageVersion());
             AssetDatabase.Refresh();
-            BuildImp(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64, $"{Application.dataPath}/../Builds/Windows/Release_Windows.exe");
+            BuildImp(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64, $"{Application.dataPath}/../Build/Windows/Release_Windows.exe");
         }
 
         // 构建版本相关
@@ -196,11 +286,11 @@ namespace UnityGameFramework.Editor
             return DateTime.Now.ToString("yyyy-MM-dd") + "-" + totalMinutes;
         }
 
-        [MenuItem("Game Framework/Quick Build/一键打包Android", false, 90)]
+        [MenuItem("GameFramework/Quick Build/一键打包Android", false, 30)]
         public static void AutomationBuildAndroid()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
-            BuildDLLCommand.BuildAndCopyDlls(target);
+            // BuildDLLCommand.BuildAndCopyDlls(target);
             AssetDatabase.Refresh();
             BuildInternal(target, outputRoot: Application.dataPath + "/../Bundles", packageVersion: GetBuildPackageVersion());
             AssetDatabase.Refresh();
@@ -208,11 +298,11 @@ namespace UnityGameFramework.Editor
             // BuildImp(BuildTargetGroup.Android, BuildTarget.Android, $"{Application.dataPath}/../Build/Android/Android.apk");
         }
 
-        [MenuItem("Game Framework/Quick Build/一键打包IOS", false, 90)]
+        [MenuItem("GameFramework/Quick Build/一键打包IOS", false, 30)]
         public static void AutomationBuildIOS()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
-            BuildDLLCommand.BuildAndCopyDlls(target);
+            // BuildDLLCommand.BuildAndCopyDlls(target);
             AssetDatabase.Refresh();
             BuildInternal(target, outputRoot: Application.dataPath + "/../Bundles", packageVersion: GetBuildPackageVersion());
             AssetDatabase.Refresh();
@@ -221,7 +311,7 @@ namespace UnityGameFramework.Editor
 
         public static void BuildImp(BuildTargetGroup buildTargetGroup, BuildTarget buildTarget, string locationPathName)
         {
-            EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, BuildTarget.StandaloneWindows64);
+            EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, buildTarget);
             AssetDatabase.Refresh();
 
             BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions

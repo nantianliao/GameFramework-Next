@@ -9,7 +9,7 @@ namespace UnityGameFramework.Editor
     /// </summary>
     public static class GetAssetHelper
     {
-        [MenuItem("Assets/Get Asset Path", priority = 3)]
+        [MenuItem("Assets/Log Asset Path")]
         static void GetAssetPath()
         {
             UnityEngine.Object selObj = Selection.activeObject;
@@ -22,7 +22,7 @@ namespace UnityGameFramework.Editor
             }
         }
         
-        [MenuItem("Assets/Get Addressable Path", priority = 3)]
+        [MenuItem("Assets/Log Addressable Path")]
         static void GetAddressablePath()
         {
             UnityEngine.Object selObj = Selection.activeObject;

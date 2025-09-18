@@ -2,6 +2,8 @@
 using UnityEditor;
 using GameFramework;
 using UnityGameFramework.Runtime;
+using System.Collections.Generic;
+using YooAsset.Editor;
 
 namespace UnityGameFramework.Editor
 {
@@ -10,36 +12,31 @@ namespace UnityGameFramework.Editor
     {
         private static readonly string[] _resourceModeNames = new string[]
         {
-            "EditorSimulateMode (编辑器下的模拟模式)",
+            "EditorSimulateMode (模拟模式)",
             "OfflinePlayMode (单机模式)",
-            "HostPlayMode (联机运行模式)",
-            "WebPlayMode (WebGL运行模式)"
-        };
-
-        private static readonly string[] _verifyLevelNames = new string[]
-        {
-            "Low (验证文件存在)",
-            "Middle (验证文件大小)",
-            "High (验证文件大小和CRC)"
+            "HostPlayMode (联机模式)",
+            "WebPlayMode (WebGL模式)"
         };
 
         private SerializedProperty m_PlayMode = null;
+        private SerializedProperty m_EncryptionType = null;
         private SerializedProperty m_UpdatableWhilePlaying = null;
-        private SerializedProperty m_VerifyLevel = null;
         private SerializedProperty m_Milliseconds = null;
         private SerializedProperty m_ReadWritePathType = null;
         private SerializedProperty m_MinUnloadUnusedAssetsInterval = null;
         private SerializedProperty m_MaxUnloadUnusedAssetsInterval = null;
-        private  SerializedProperty m_UseSystemUnloadUnusedAssets = null;
+        private SerializedProperty m_UseSystemUnloadUnusedAssets = null;
         private SerializedProperty m_AssetAutoReleaseInterval = null;
         private SerializedProperty m_AssetCapacity = null;
         private SerializedProperty m_AssetExpireTime = null;
         private SerializedProperty m_AssetPriority = null;
         private SerializedProperty m_DownloadingMaxNum = null;
         private SerializedProperty m_FailedTryAgain = null;
-
+        private SerializedProperty m_PackageName = null;
         private int m_ResourceModeIndex = 0;
-        private int m_VerifyIndex = 0;
+
+        private int _packageNameIndex = 0;
+        private string[] _packageNames;
 
         public override void OnInspectorGUI()
         {
@@ -53,32 +50,38 @@ namespace UnityGameFramework.Editor
             {
                 if (EditorApplication.isPlaying && IsPrefabInHierarchy(t.gameObject))
                 {
-                    EditorGUILayout.EnumPopup("Resource Mode", t.PlayMode);
-
-                    EditorGUILayout.EnumPopup("VerifyLevel", t.VerifyLevel);
+                    EditorGUILayout.EnumPopup("Play Mode", t.PlayMode);
                 }
                 else
                 {
-                    int selectedIndex = EditorGUILayout.Popup("Resource Mode", m_ResourceModeIndex, _resourceModeNames);
+                    int selectedIndex = EditorGUILayout.Popup("Play Mode", m_ResourceModeIndex, _resourceModeNames);
                     if (selectedIndex != m_ResourceModeIndex)
                     {
                         m_ResourceModeIndex = selectedIndex;
                         m_PlayMode.enumValueIndex = selectedIndex;
                     }
-
-                    int selectedVerifyIndex = EditorGUILayout.Popup("VerifyLevel", m_VerifyIndex, _verifyLevelNames);
-                    if (selectedVerifyIndex != m_VerifyIndex)
-                    {
-                        m_VerifyIndex = selectedVerifyIndex;
-                        m_VerifyLevel.enumValueIndex = selectedVerifyIndex;
-                    }
                 }
 
                 m_ReadWritePathType.enumValueIndex = (int)(ReadWritePathType)EditorGUILayout.EnumPopup("Read-Write Path Type", t.ReadWritePathType);
+
+                EditorGUILayout.PropertyField(m_EncryptionType);
             }
+
             EditorGUILayout.PropertyField(m_UpdatableWhilePlaying);
-            
+
             EditorGUI.EndDisabledGroup();
+
+            _packageNames = GetBuildPackageNames().ToArray();
+            _packageNameIndex = Array.IndexOf(_packageNames, m_PackageName.stringValue);
+            if (_packageNameIndex < 0)
+            {
+                _packageNameIndex = 0;
+            }
+            _packageNameIndex = EditorGUILayout.Popup("Package Name", _packageNameIndex, _packageNames);
+            if (m_PackageName.stringValue != _packageNames[_packageNameIndex])
+            {
+                m_PackageName.stringValue = _packageNames[_packageNameIndex];
+            }
 
             int milliseconds = EditorGUILayout.DelayedIntField("Milliseconds", m_Milliseconds.intValue);
             if (milliseconds != m_Milliseconds.intValue)
@@ -92,7 +95,7 @@ namespace UnityGameFramework.Editor
                     m_Milliseconds.longValue = milliseconds;
                 }
             }
-            
+
             EditorGUILayout.PropertyField(m_UseSystemUnloadUnusedAssets);
 
             float minUnloadUnusedAssetsInterval =
@@ -229,8 +232,8 @@ namespace UnityGameFramework.Editor
         private void OnEnable()
         {
             m_PlayMode = serializedObject.FindProperty("playMode");
+            m_EncryptionType = serializedObject.FindProperty("encryptionType");
             m_UpdatableWhilePlaying = serializedObject.FindProperty("m_UpdatableWhilePlaying");
-            m_VerifyLevel = serializedObject.FindProperty("VerifyLevel");
             m_Milliseconds = serializedObject.FindProperty("Milliseconds");
             m_ReadWritePathType = serializedObject.FindProperty("m_ReadWritePathType");
             m_MinUnloadUnusedAssetsInterval = serializedObject.FindProperty("m_MinUnloadUnusedAssetsInterval");
@@ -242,6 +245,7 @@ namespace UnityGameFramework.Editor
             m_AssetPriority = serializedObject.FindProperty("m_AssetPriority");
             m_DownloadingMaxNum = serializedObject.FindProperty("m_DownloadingMaxNum");
             m_FailedTryAgain = serializedObject.FindProperty("m_FailedTryAgain");
+            m_PackageName = serializedObject.FindProperty("m_packageName");
 
             RefreshModes();
             RefreshTypeNames();
@@ -250,12 +254,25 @@ namespace UnityGameFramework.Editor
         private void RefreshModes()
         {
             m_ResourceModeIndex = m_PlayMode.enumValueIndex > 0 ? m_PlayMode.enumValueIndex : 0;
-            m_VerifyIndex = m_VerifyLevel.enumValueIndex > 0 ? m_VerifyLevel.enumValueIndex : 0;
         }
 
         private void RefreshTypeNames()
         {
             serializedObject.ApplyModifiedProperties();
+        }
+
+        /// <summary>
+        /// 获取构建包名称列表，用于下拉可选择
+        /// </summary>
+        /// <returns></returns>
+        private List<string> GetBuildPackageNames()
+        {
+            List<string> result = new List<string>();
+            foreach (var package in AssetBundleCollectorSettingData.Setting.Packages)
+            {
+                result.Add(package.PackageName);
+            }
+            return result;
         }
     }
 }

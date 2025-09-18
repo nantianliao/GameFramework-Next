@@ -1,0 +1,12 @@
+放置HybridCLR设置DLL
+
+1、mscorlib.dll
+2、System.Core.dll
+3、System.dll
+4、UnityEngine.CoreModule.dll
+5、UnityGameFramework.Runtime.dll
+6、YooAsset.dll
+7、UniTask.dll
+8、GameBase.dll
+9、GameLogic.dll
+10、GameProto.dll
