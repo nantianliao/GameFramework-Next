@@ -19,7 +19,7 @@ hybridclr
 实现初衷：
 作为一个商业级成熟的资源框架 YooAsset对资源包的设计和划分会稍微更成熟一些。包括对DLC的支持 以及webgl的支持，资源定位地址的支持等。不管是上steam还是小游戏都更自洽。且GameFramework的资源模块存在一定的设计过度问题。故在此首次把YooAsset接入GF并实现热更新。（HybridCLR热更新流程已经实现）
 
-PS：本Repository改自Alex_Rachel的GameFramework-Next，能力有限，可能存在Bug，仅作学习交流使用。
+PS：本Repository改自Alex_Rachel的<a href="https://github.com/Alex-Rachel/GameFramework-Next"><strong>GameFramework-Next</strong></a>，能力有限，可能存在Bug，仅作学习交流使用。
 
 
 ``` 
